@@ -10,6 +10,7 @@ from src.training_pipeline.models.xgboost_model import XGBoostModel
 from src.training_pipeline.models.tensorflow_model import TensorFlowModel
 from src.training_pipeline.evaluator import Evaluator
 from src.training_pipeline.model_registry import get_model_registry
+from src.feature_pipeline.feature_store import get_feature_store
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -19,6 +20,7 @@ class Trainer:
     
     def __init__(self):
         self.registry = get_model_registry()
+        self.feature_store = get_feature_store()
         self.evaluator = Evaluator()
         
     def _create_sequences(self, data: pd.DataFrame, target: pd.Series, lookback: int):
@@ -52,17 +54,18 @@ class Trainer:
         """Run the full training pipeline."""
         logger.info("Starting training pipeline...")
         
-        # 1. Fetch training data from feature store
-        feature_path = config.FEATURES_DIR / "aqi_features_all.parquet"
-        if not feature_path.exists():
-            # Fallback: try the alternative name
-            feature_path = config.FEATURES_DIR / "features.parquet"
-        if not feature_path.exists():
-            logger.error(f"No feature file found in {config.FEATURES_DIR}")
+        # 1. Fetch training data from the configured feature store. The
+        # Hopsworks backend falls back to the local Parquet store on outage.
+        end_date = pd.Timestamp.now().ceil("D").strftime("%Y-%m-%d")
+        df = self.feature_store.get_training_data(config.BACKFILL_START_DATE, end_date)
+        if df is None or df.empty:
+            logger.error("No training features available from the configured feature store.")
             return None
-            
-        df = pd.read_parquet(feature_path)
-        logger.info(f"Loaded {len(df)} rows from {feature_path}")
+        logger.info(
+            "Loaded %s rows from %s feature store.",
+            len(df),
+            type(self.feature_store).__name__,
+        )
         
         # 2. Sort by time and split (80/10/10)
         if 'timestamp' in df.columns:

@@ -22,15 +22,17 @@ try:
         sys.exit(1)
     
     df = pd.read_parquet(local_file)
-    print(f"   ✓ Loaded {len(df)} rows from local storage")
-    print(f"   ✓ Features: {len(df.columns)} columns")
-    print(f"   ✓ Date range: {df.index.min()} to {df.index.max()}")
+    print(f"   Loaded {len(df)} rows from local storage")
+    print(f"   Features: {len(df.columns)} columns")
+    print(f"   Date range: {df.index.min()} to {df.index.max()}")
     
     # 2. Push to Hopsworks
     print("\n2. Pushing to Hopsworks...")
     hfs = HopsworksFeatureStore()
-    hfs.save_features(df)
-    print(f"   ✓ Features pushed successfully!")
+    if not hfs.save_features(df):
+        print("   ERROR: Features were kept locally but were not stored in Hopsworks.")
+        sys.exit(2)
+    print("   Features pushed successfully.")
     
     # 3. Verify
     print("\n3. Verifying Hopsworks status...")
@@ -41,11 +43,11 @@ try:
     print(f"   Latest: {status['latest_timestamp']}")
     
     print("\n" + "=" * 70)
-    print("✓ HOPSWORKS INTEGRATION COMPLETE!")
+    print("HOPSWORKS INTEGRATION COMPLETE!")
     print("=" * 70)
     
 except Exception as e:
-    print(f"\n❌ ERROR: {e}")
+    print(f"\nERROR: {e}")
     import traceback
     traceback.print_exc()
     sys.exit(1)

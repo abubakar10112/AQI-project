@@ -193,8 +193,47 @@ def fetch_all_current() -> Optional[pd.DataFrame]:
                     
     return df
 
+
+def run_feature_pipeline() -> bool:
+    """Fetch current observations, engineer features, and persist them.
+
+    This is the entry point used by the hourly workflow.  A recent window from
+    the store is included before feature engineering so lag and rolling AQI
+    features remain valid for the newest observations.
+    """
+    from src.feature_pipeline.feature_engineer import FeatureEngineer
+    from src.feature_pipeline.feature_store import get_feature_store
+
+    raw_current = fetch_all_current()
+    if raw_current is None or raw_current.empty:
+        logger.error("No current source data was fetched; skipping feature-store update.")
+        return False
+
+    store = get_feature_store()
+    raw_columns = [config.TARGET, *config.WEATHER_FEATURES, *config.POLLUTANT_FEATURES]
+    available_columns = [column for column in raw_columns if column in raw_current.columns]
+    if set(raw_columns) - set(available_columns):
+        logger.error("Current source data is missing required raw feature columns.")
+        return False
+
+    historical = store.get_latest_features(n_hours=config.LOOKBACK_HOURS)
+    frames = []
+    if historical is not None and not historical.empty:
+        frames.append(historical.reindex(columns=raw_columns))
+    frames.append(raw_current[raw_columns])
+
+    raw_features = pd.concat(frames)
+    raw_features = raw_features[~raw_features.index.duplicated(keep="last")].sort_index()
+    engineered = FeatureEngineer().engineer_features(raw_features)
+    new_features = engineered.loc[engineered.index >= raw_current.index.min()]
+    if new_features.empty:
+        logger.warning("Feature engineering produced no new rows to store.")
+        return False
+
+    store.save_features(new_features)
+    logger.info("Stored %s newly engineered feature rows.", len(new_features))
+    return True
+
 if __name__ == "__main__":
-    df = fetch_all_current()
-    if df is not None:
-        print(f"Fetched current data. Shape: {df.shape}")
-        print(df.head())
+    if not run_feature_pipeline():
+        raise SystemExit(1)

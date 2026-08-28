@@ -120,6 +120,7 @@ class HopsworksFeatureStore:
         self.fg_version = 1
         self._fs = None
         self._fg = None
+        self._fallback = LocalFeatureStore()
         self._init_connection()
 
     def _init_connection(self):
@@ -163,32 +164,34 @@ class HopsworksFeatureStore:
     def get_training_data(self, start_date: str, end_date: str) -> Optional[pd.DataFrame]:
         fg = self._get_or_create_fg()
         if fg is None:
-            return LocalFeatureStore().get_training_data(start_date, end_date)
+            return self._fallback.get_training_data(start_date, end_date)
         try:
-            df = fg.read()
-            if "timestamp" in df.columns:
-                df["timestamp"] = pd.to_datetime(df["timestamp"])
-                df = df.set_index("timestamp")
+            df = self._to_timestamp_index(fg.read())
             mask = (df.index >= pd.to_datetime(start_date)) & (df.index <= pd.to_datetime(end_date))
-            return df.loc[mask] if not df.empty else None
+            remote_data = df.loc[mask] if not df.empty else None
+            if remote_data is not None and not remote_data.empty:
+                return remote_data
+            logger.warning("Hopsworks feature group is empty; falling back to local training data.")
+            return self._fallback.get_training_data(start_date, end_date)
         except Exception as e:
             logger.warning(f"Hopsworks read failed: {e}. Falling back to local.")
-            return LocalFeatureStore().get_training_data(start_date, end_date)
+            return self._fallback.get_training_data(start_date, end_date)
 
     def get_latest_features(self, n_hours: int = 48) -> Optional[pd.DataFrame]:
         fg = self._get_or_create_fg()
         if fg is None:
-            return LocalFeatureStore().get_latest_features(n_hours)
+            return self._fallback.get_latest_features(n_hours)
         try:
-            df = fg.read()
-            if "timestamp" in df.columns:
-                df["timestamp"] = pd.to_datetime(df["timestamp"])
-                df = df.set_index("timestamp")
+            df = self._to_timestamp_index(fg.read())
             cutoff = df.index.max() - timedelta(hours=n_hours) if not df.empty else pd.Timestamp.now()
-            return df.loc[df.index >= cutoff] if not df.empty else None
+            remote_data = df.loc[df.index >= cutoff] if not df.empty else None
+            if remote_data is not None and not remote_data.empty:
+                return remote_data
+            logger.warning("Hopsworks feature group is empty; falling back to local recent features.")
+            return self._fallback.get_latest_features(n_hours)
         except Exception as e:
             logger.warning(f"Hopsworks read failed: {e}. Falling back to local.")
-            return LocalFeatureStore().get_latest_features(n_hours)
+            return self._fallback.get_latest_features(n_hours)
 
     def get_feature_store_status(self) -> dict:
         """Return Hopsworks feature store status for health checks."""
@@ -206,42 +209,85 @@ class HopsworksFeatureStore:
             return status
             
         try:
-            df = fg.read()
+            df = self._to_timestamp_index(fg.read())
             status["available"] = not df.empty
             status["row_count"] = int(len(df))
-            if not df.empty:
-                if "timestamp" in df.columns:
-                    status["latest_timestamp"] = pd.to_datetime(df["timestamp"]).max().isoformat()
-                elif isinstance(df.index, pd.DatetimeIndex):
-                    status["latest_timestamp"] = df.index.max().isoformat()
+            if not df.empty and isinstance(df.index, pd.DatetimeIndex):
+                status["latest_timestamp"] = df.index.max().isoformat()
+                required_columns = {config.TARGET, *config.ALL_FEATURES}
+                status["missing_columns"] = sorted(required_columns - set(df.columns))
             return status
         except Exception as e:
             logger.warning(f"Could not read Hopsworks status: {e}")
             return status
 
-    def save_features(self, df: pd.DataFrame) -> None:
+    def save_features(self, df: pd.DataFrame) -> bool:
+        """Persist features locally and return whether the Hopsworks upsert succeeded."""
+        if not LocalFeatureStore.validate_features(df):
+            logger.warning("Feature validation failed before writing to Hopsworks.")
+            return False
+
         # Always save locally
         try:
-            LocalFeatureStore().save_features(df)
+            self._fallback.save_features(df)
         except Exception as e:
             logger.error(f"Local save failed: {e}")
         
         # Try to save to Hopsworks
         fg = self._get_or_create_fg()
         if fg is None:
-            return
+            return False
         
         try:
-            df_hs = df.copy().reset_index()
-            if "index" in df_hs.columns:
-                df_hs = df_hs.rename(columns={"index": "timestamp"})
-            if "timestamp" not in df_hs.columns:
-                logger.error("No timestamp found for Hopsworks insert.")
-                return
-            fg.insert(df_hs, write_options={"wait_for_job": False})
-            logger.info(f"Saved {len(df)} rows to Hopsworks.")
+            df_hs = self._to_hopsworks_frame(df)
+            # Hudi's default operation is upsert. Waiting for both jobs makes a
+            # successful return mean the data is available in the feature store.
+            fg.insert(
+                df_hs,
+                operation="upsert",
+                write_options={
+                    "wait_for_job": True,
+                    "wait_for_online_ingestion": True,
+                },
+            )
+            logger.info(f"Stored {len(df_hs)} feature rows in Hopsworks.")
+            return True
         except Exception as e:
             logger.warning(f"Hopsworks save failed: {e}")
+            return False
+
+    @staticmethod
+    def _to_hopsworks_frame(df: pd.DataFrame) -> pd.DataFrame:
+        """Return a deterministic, Hopsworks-compatible feature dataframe."""
+        df_hs = df.copy()
+        if "timestamp" not in df_hs.columns:
+            df_hs = df_hs.reset_index()
+            index_column = df_hs.columns[0]
+            if index_column != "timestamp":
+                df_hs = df_hs.rename(columns={index_column: "timestamp"})
+
+        if "timestamp" not in df_hs.columns:
+            raise ValueError("Features must have a timestamp index or column.")
+
+        df_hs["timestamp"] = pd.to_datetime(df_hs["timestamp"], errors="raise")
+        if df_hs["timestamp"].isna().any():
+            raise ValueError("Feature timestamps cannot be null.")
+
+        # A Hopsworks feature group's primary key must be unique within a batch.
+        return (
+            df_hs.drop_duplicates(subset=["timestamp"], keep="last")
+            .sort_values("timestamp")
+            .reset_index(drop=True)
+        )
+
+    @staticmethod
+    def _to_timestamp_index(df: pd.DataFrame) -> pd.DataFrame:
+        """Normalize feature-group reads to the local store's timestamp index."""
+        if "timestamp" not in df.columns:
+            return df
+        result = df.copy()
+        result["timestamp"] = pd.to_datetime(result["timestamp"], errors="raise")
+        return result.set_index("timestamp").sort_index()
 
 def get_feature_store():
     """Factory function to get the configured feature store backend."""

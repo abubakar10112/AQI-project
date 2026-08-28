@@ -2,6 +2,7 @@ import os
 import json
 import joblib
 import logging
+import shutil
 from datetime import datetime
 from pathlib import Path
 from src import config
@@ -106,10 +107,16 @@ class LocalModelRegistry:
         return versions
 
 class HopsworksModelRegistry(LocalModelRegistry):
-    """Hopsworks model registry (fallback to local)."""
+    """Hopsworks-backed model registry that retains a local recovery copy."""
     
     def __init__(self):
         super().__init__()
+        self.project = None
+        self.mr = None
+        self.hopsworks_available = False
+        if not config.HOPSWORKS_API_KEY:
+            logger.warning("HOPSWORKS_API_KEY not set. Model registry will use local storage.")
+            return
         try:
             import hopsworks
             self.project = hopsworks.login(host=config.HOPSWORKS_HOST, api_key_value=config.HOPSWORKS_API_KEY, project=config.HOPSWORKS_PROJECT_NAME)
@@ -120,20 +127,70 @@ class HopsworksModelRegistry(LocalModelRegistry):
             self.hopsworks_available = False
             
     def save_model(self, model, model_name: str, metrics: dict, feature_list: list = None):
+        """Save locally, then register the exact artifact bundle in Hopsworks."""
         version = super().save_model(model, model_name, metrics, feature_list)
         if not self.hopsworks_available:
             return version
             
         try:
-            # Stub for Hopsworks API interaction
-            logger.info(f"Would save {model_name} v{version} to Hopsworks.")
+            artifact_dir = self._create_hopsworks_artifact(model_name, version)
+            registered_model = self.mr.python.create_model(
+                name=model_name,
+                metrics=metrics,
+                description=(
+                    "AQI forecaster for Lahore. "
+                    f"Local backup version: {version}."
+                ),
+            )
+            registered_model.save(str(artifact_dir))
+            self._record_hopsworks_registration(
+                model_name,
+                version,
+                registered_model,
+            )
+            logger.info(
+                "Registered %s v%s in Hopsworks as remote version %s.",
+                model_name,
+                version,
+                getattr(registered_model, "version", "unknown"),
+            )
         except Exception as e:
-            logger.error(f"Error saving to Hopsworks: {e}")
+            # The local artifact is intentionally preserved so inference remains
+            # available if Hopsworks is temporarily unavailable.
+            logger.exception(f"Error registering {model_name} in Hopsworks: {e}")
         return version
+
+    def _create_hopsworks_artifact(self, model_name: str, version: int) -> Path:
+        """Stage the locally saved model and metadata as one registry artifact."""
+        artifact_dir = self.models_dir / "hopsworks_artifacts" / f"{model_name}_v{version}"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+
+        suffix = ".keras" if model_name == "tensorflow" else ".joblib"
+        local_model = self.models_dir / f"{model_name}_v{version}{suffix}"
+        local_metadata = self.models_dir / f"{model_name}_v{version}_meta.json"
+        if not local_model.exists() or not local_metadata.exists():
+            raise FileNotFoundError("Local model artifacts were not created before registration.")
+
+        shutil.copy2(local_model, artifact_dir / f"model{suffix}")
+        shutil.copy2(local_metadata, artifact_dir / "metadata.json")
+        return artifact_dir
+
+    def _record_hopsworks_registration(self, model_name: str, version: int, registered_model) -> None:
+        """Persist the remote model reference alongside the local metadata."""
+        metadata_path = self.models_dir / f"{model_name}_v{version}_meta.json"
+        with open(metadata_path, "r", encoding="utf-8") as file:
+            metadata = json.load(file)
+        metadata["hopsworks"] = {
+            "project": config.HOPSWORKS_PROJECT_NAME,
+            "model_name": model_name,
+            "version": getattr(registered_model, "version", None),
+        }
+        with open(metadata_path, "w", encoding="utf-8") as file:
+            json.dump(metadata, file, indent=4)
 
 def get_model_registry():
     """Factory function for model registry."""
-    if config.FEATURE_STORE_BACKEND == "hopsworks":
+    if config.FEATURE_STORE_BACKEND.lower() == "hopsworks":
         return HopsworksModelRegistry()
     return LocalModelRegistry()
 

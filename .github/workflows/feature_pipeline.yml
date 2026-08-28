@@ -4,17 +4,28 @@ on:
   schedule:
     # Run every hour
     - cron: '0 * * * *'
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run the hourly update or perform the initial historical Hopsworks backfill'
+        required: true
+        default: hourly
+        type: choice
+        options:
+          - hourly
+          - backfill
 
 env:
   AQICN_API_TOKEN: ${{ secrets.AQICN_API_TOKEN }}
   HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
-  FEATURE_STORE_BACKEND: ${{ secrets.FEATURE_STORE_BACKEND || 'local' }}
+  HOPSWORKS_HOST: ${{ secrets.HOPSWORKS_HOST || 'eu-west.cloud.hopsworks.ai' }}
+  HOPSWORKS_PROJECT_NAME: ${{ secrets.HOPSWORKS_PROJECT_NAME || 'AQI_Abubakar' }}
+  FEATURE_STORE_BACKEND: hopsworks
 
 jobs:
   run-feature-pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 90
 
     steps:
       - name: Checkout repository
@@ -39,10 +50,17 @@ jobs:
           restore-keys: |
             feature-store-
 
-      - name: Run Feature Pipeline
+      - name: Run hourly feature update
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.mode == 'hourly' }}
         run: |
           python -m src.feature_pipeline.data_fetcher
-          echo "Feature pipeline completed successfully"
+          echo "Hourly feature update completed successfully"
+
+      - name: Backfill Hopsworks feature store
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'backfill' }}
+        run: |
+          python -m src.feature_pipeline.backfill
+          echo "Historical Hopsworks backfill completed successfully"
 
       - name: Save feature store cache
         uses: actions/cache@v4
