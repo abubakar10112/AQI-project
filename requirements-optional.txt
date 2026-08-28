@@ -1,2 +1,0 @@
-tensorflow>=2.21.0
-hopsworks>=4.0.0

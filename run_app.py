@@ -32,7 +32,7 @@ def main():
         "--server.headless",
         "true",
         "--server.address",
-        "0.0.0.0",
+        "127.0.0.1",
     ], "Streamlit Dashboard")
 
     print("Backend PID:", backend.pid)

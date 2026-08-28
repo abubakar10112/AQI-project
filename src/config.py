@@ -56,7 +56,7 @@ AQICN_STATIONS = [
 # =============================================================================
 # Feature Store Configuration
 # =============================================================================
-FEATURE_STORE_BACKEND = os.getenv("FEATURE_STORE_BACKEND", "local").lower()  # "local" or "hopsworks"
+FEATURE_STORE_BACKEND = os.getenv("FEATURE_STORE_BACKEND", "local")  # "local" or "hopsworks"
 HOPSWORKS_API_KEY = os.getenv("HOPSWORKS_API_KEY", "")
 HOPSWORKS_HOST = os.getenv("HOPSWORKS_HOST", "eu-west.cloud.hopsworks.ai")
 HOPSWORKS_PROJECT_NAME = os.getenv("HOPSWORKS_PROJECT_NAME", "pearls_aqi_predictor")
