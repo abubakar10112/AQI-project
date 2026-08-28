@@ -176,6 +176,7 @@ MODEL_FALLBACK_CHAIN = [
     "xgboost",
     "random_forest",
     "ridge",
+    "tensorflow",
 ]
 
 # =============================================================================

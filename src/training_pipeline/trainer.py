@@ -7,6 +7,7 @@ from src import config
 from src.training_pipeline.models.ridge_regression import RidgeModel
 from src.training_pipeline.models.random_forest import RandomForestModel
 from src.training_pipeline.models.xgboost_model import XGBoostModel
+from src.training_pipeline.models.tensorflow_model import TensorFlowModel
 from src.training_pipeline.evaluator import Evaluator
 from src.training_pipeline.model_registry import get_model_registry
 
@@ -108,9 +109,14 @@ class Trainer:
             'random_forest': (RandomForestModel(), X_train_flat, y_train, X_test_flat, y_test),
             'xgboost': (XGBoostModel(), X_train_flat, y_train, X_test_flat, y_test)
         }
+
+        if X_train_seq is not None and y_train_seq is not None and X_test_seq is not None and y_test_seq is not None:
+            try:
+                models['tensorflow'] = (TensorFlowModel(), X_train_seq, y_train_seq, X_test_seq, y_test_seq)
+                logger.info("TensorFlow LSTM model enabled.")
+            except Exception as exc:
+                logger.warning(f"TensorFlow LSTM could not be initialized: {exc}")
         
-        # TensorFlow LSTM model removed - use only tabular models for now
-            
         results = {}
         trained_models = {}
         
