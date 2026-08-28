@@ -1,0 +1,59 @@
+name: Feature Pipeline (Hourly)
+
+on:
+  schedule:
+    # Run every hour
+    - cron: '0 * * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  AQICN_API_TOKEN: ${{ secrets.AQICN_API_TOKEN }}
+  HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+  FEATURE_STORE_BACKEND: ${{ secrets.FEATURE_STORE_BACKEND || 'local' }}
+
+jobs:
+  run-feature-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Restore feature store cache
+        uses: actions/cache@v4
+        with:
+          path: data/features/
+          key: feature-store-${{ github.run_id }}
+          restore-keys: |
+            feature-store-
+
+      - name: Run Feature Pipeline
+        run: |
+          python -m src.feature_pipeline.data_fetcher
+          echo "Feature pipeline completed successfully"
+
+      - name: Save feature store cache
+        uses: actions/cache@v4
+        with:
+          path: data/features/
+          key: feature-store-${{ github.run_id }}
+
+      - name: Upload feature artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: feature-data-${{ github.run_number }}
+          path: data/features/
+          retention-days: 7

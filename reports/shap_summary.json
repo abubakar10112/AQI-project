@@ -1,0 +1,62 @@
+[
+    {
+        "Feature": "aqi_lag_1h",
+        "Importance": 37.620113372802734
+    },
+    {
+        "Feature": "aqi_lag_3h",
+        "Importance": 15.201125144958496
+    },
+    {
+        "Feature": "aqi_change_rate",
+        "Importance": 2.550553798675537
+    },
+    {
+        "Feature": "aqi_rolling_mean_24h",
+        "Importance": 2.0771217346191406
+    },
+    {
+        "Feature": "aqi_lag_6h",
+        "Importance": 1.3952414989471436
+    },
+    {
+        "Feature": "aqi_lag_12h",
+        "Importance": 0.2846059501171112
+    },
+    {
+        "Feature": "ozone",
+        "Importance": 0.21851806342601776
+    },
+    {
+        "Feature": "pm2_5",
+        "Importance": 0.21572604775428772
+    },
+    {
+        "Feature": "hour",
+        "Importance": 0.13968336582183838
+    },
+    {
+        "Feature": "pm10",
+        "Importance": 0.08945824950933456
+    },
+    {
+        "Feature": "days_since_rain",
+        "Importance": 0.07656366378068924
+    },
+    {
+        "Feature": "aqi_rolling_std_24h",
+        "Importance": 0.05729995667934418
+    },
+    {
+        "Feature": "carbon_monoxide",
+        "Importance": 0.05088496208190918
+    },
+    {
+        "Feature": "aqi_lag_24h",
+        "Importance": 0.04571972042322159
+    },
+    {
+        "Feature": "temperature_2m",
+        "Importance": 0.04222653806209564
+    }
+]
