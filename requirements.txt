@@ -11,5 +11,9 @@ flask-cors>=4.0.0
 joblib>=1.3.0
 shap>=0.43.0
 xgboost>=2.0.0
-tensorflow>=2.21.0
-hopsworks>=4.0.0
+
+# Optional packages for local/Docker training and Hopsworks usage.
+# These are intentionally not included in the main deployment requirements because
+# TensorFlow and Hopsworks are large and sometimes fail during hosted app installs.
+# Install them in a local environment with:
+#   pip install -r requirements-optional.txt
