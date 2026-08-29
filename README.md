@@ -54,8 +54,12 @@ python -m venv venv
 venv\Scripts\activate  # Windows
 # source venv/bin/activate  # Linux/Mac
 
-# Install dependencies
+# Install the default local-backend app dependencies
 pip install -r requirements.txt
+
+# Optional: enable the Hopsworks feature store / model registry
+# (Python 3.11–3.13 only; not supported on Python 3.14+)
+pip install "hopsworks[python]==4.8.5"
 ```
 
 ### 2. Configure Environment
