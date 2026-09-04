@@ -213,14 +213,18 @@ class Predictor:
             avg_aqi = np.mean(vals)
             max_aqi = np.max(vals)
             min_aqi = np.min(vals)
-            cat = config.get_aqi_category(avg_aqi)['label']
+            cat = config.get_aqi_category(avg_aqi)
             
             daily_summary.append({
                 'date': date_str,
+                'day_name': pd.to_datetime(date_str).strftime('%A, %b %d'),
                 'avg_aqi': round(avg_aqi, 2),
                 'max_aqi': round(max_aqi, 2),
                 'min_aqi': round(min_aqi, 2),
-                'category': cat
+                'category': cat['label'],
+                'color': cat['color'],
+                'emoji': cat['emoji'],
+                'advisory': config.get_health_advisory(avg_aqi),
             })
             
         # 6. Return response payload

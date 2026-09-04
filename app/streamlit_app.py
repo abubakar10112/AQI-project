@@ -241,56 +241,85 @@ def main():
             
     st.divider()
 
-    # ------------------ Row 2: 3-Day Forecast Chart ------------------
-    st.subheader("3-Day Forecast")
-    selected_model_key = {
-        "XGBoost": "xgboost",
-        "Random Forest": "random_forest",
-        "Ridge": "ridge",
-    }[model_selector]
-    forecast_data = fetch_api("/predict", params={"model": selected_model_key})
+    # ------------------ Row 2: 3-Day Forecast (Individual Days) ------------------
+    st.subheader(f"3-Day Forecast (Model: {forecast_data.get('model_used', 'N/A').upper()})")
     
-    if forecast_data and 'hourly_predictions' in forecast_data:
-        df_forecast = pd.DataFrame(forecast_data['hourly_predictions'])
-        df_forecast['timestamp'] = pd.to_datetime(df_forecast['timestamp'])
+    if forecast_data and 'daily_summary' in forecast_data and forecast_data['daily_summary']:
+        days = forecast_data['daily_summary'][:3]
+        cols = st.columns(len(days))
         
-        fig = go.Figure()
+        for idx, (col, day) in enumerate(zip(cols, days)):
+            with col:
+                day_num = idx + 1
+                date_str = day.get('date', '')
+                day_name = day.get('day_name') or (pd.to_datetime(date_str).strftime('%A, %b %d') if date_str else f"Day {day_num}")
+                avg_aqi = float(day.get('avg_aqi', 0))
+                min_aqi = float(day.get('min_aqi', 0))
+                max_aqi = float(day.get('max_aqi', 0))
+                category = day.get('category', 'Unknown')
+                cat_info = config.get_aqi_category(avg_aqi)
+                color = day.get('color') or cat_info['color']
+                emoji = day.get('emoji') or cat_info['emoji']
+                advisory = day.get('advisory') or cat_info.get('health_advisory') or config.get_health_advisory(avg_aqi)
 
-        max_aqi = max(500, df_forecast['aqi'].max() + 50)
-        for cat in config.AQI_CATEGORIES:
-            fig.add_hrect(
-                y0=cat['min'], y1=min(cat['max'], max_aqi),
-                fillcolor=cat['color'], opacity=0.12,
-                layer="below", line_width=0,
-            )
+                day_label = "Day 1" if day_num == 1 else f"Day {day_num}"
 
-        fig.add_trace(go.Scatter(
-            x=df_forecast['timestamp'],
-            y=df_forecast['aqi'],
-            mode='lines+markers',
-            name='Predicted AQI',
-            line=dict(color='#7dd3fc', width=3),
-            marker=dict(color=df_forecast['color'], size=7, line=dict(width=1, color='white')),
-            hovertemplate='<b>%{x}</b><br>AQI: %{y}<extra></extra>'
-        ))
-
-        fig.update_layout(
-            title=f"Hourly Forecast (Model: {forecast_data.get('model_used', 'N/A')})",
-            xaxis_title="Time",
-            yaxis_title="AQI",
-            height=430,
-            template='plotly_dark',
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            hovermode='x unified',
-            legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
-            margin=dict(l=20, r=20, t=50, b=20),
-            font=dict(color='#eaf2ff')
-        )
-        fig.update_xaxes(showgrid=False, gridcolor='rgba(255,255,255,0.08)')
-        fig.update_yaxes(showgrid=True, gridcolor='rgba(255,255,255,0.08)')
-
-        st.plotly_chart(fig, width='stretch')
+                st.markdown(
+                    f"""
+                    <div style="
+                        background: rgba(20, 30, 44, 0.85);
+                        border: 1px solid rgba(255, 255, 255, 0.08);
+                        border-top: 5px solid {color};
+                        border-radius: 14px;
+                        padding: 1.2rem;
+                        min-height: 250px;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: space-between;
+                        margin-bottom: 1rem;
+                    ">
+                        <div>
+                            <div style="font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;">
+                                {day_label} • {day_name}
+                            </div>
+                            <div style="display: flex; align-items: baseline; gap: 0.5rem; margin-top: 0.5rem;">
+                                <span style="font-size: 2.3rem; font-weight: 800; color: #f8fafc;">{avg_aqi:.0f}</span>
+                                <span style="font-size: 1rem; color: #94a3b8; font-weight: 600;">AQI</span>
+                            </div>
+                            <div style="
+                                display: inline-block;
+                                background: {color}22;
+                                border: 1px solid {color}55;
+                                color: {color};
+                                font-size: 0.8rem;
+                                font-weight: 700;
+                                padding: 0.25rem 0.6rem;
+                                border-radius: 999px;
+                                margin-top: 0.25rem;
+                            ">
+                                {emoji} {category}
+                            </div>
+                            <div style="display: flex; gap: 1rem; margin-top: 0.9rem; font-size: 0.85rem; color: #cbd5e1;">
+                                <span>🔻 Min: <strong style="color: #f8fafc;">{min_aqi:.0f}</strong></span>
+                                <span>🔺 Max: <strong style="color: #f8fafc;">{max_aqi:.0f}</strong></span>
+                            </div>
+                        </div>
+                        <div style="
+                            margin-top: 1rem;
+                            padding: 0.75rem;
+                            border-radius: 8px;
+                            background: rgba(0, 0, 0, 0.25);
+                            border-left: 3px solid {color};
+                            font-size: 0.8rem;
+                            color: #e2e8f0;
+                            line-height: 1.4;
+                        ">
+                            <strong>Advisory:</strong> {advisory}
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
     else:
         st.warning("Forecast data is currently unavailable.")
 
