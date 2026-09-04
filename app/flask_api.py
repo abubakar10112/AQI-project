@@ -195,16 +195,33 @@ def get_models():
         registry = get_model_registry()
         models = registry.list_models()
         
+        # Load local evaluation results if available
+        local_results = {}
+        results_file = config.MODELS_DIR / 'training_results.json'
+        if results_file.exists():
+            try:
+                with open(results_file, 'r') as f:
+                    local_results = json.load(f)
+            except Exception:
+                pass
+
         # Ensure all expected models from config are represented
         model_names_in_registry = {m.get('model_name') for m in models}
         for model_name in config.MODEL_FALLBACK_CHAIN:
             if model_name not in model_names_in_registry:
                 models.append({
                     'model_name': model_name,
-                    'version': 0,
-                    'metrics': {'rmse': None, 'mae': None, 'r2': None},
+                    'version': 1,
+                    'metrics': local_results.get(model_name, {'rmse': None, 'mae': None, 'r2': None}),
                     'timestamp': None,
                 })
+
+        # Fill in missing or empty metrics from local training results
+        for m in models:
+            m_name = m.get('model_name')
+            cur_metrics = m.get('metrics') or {}
+            if (not cur_metrics or cur_metrics.get('rmse') is None) and m_name in local_results:
+                m['metrics'] = local_results[m_name]
         
         return jsonify(models)
     except Exception as e:
