@@ -6,6 +6,7 @@ All API endpoints, feature definitions, model parameters, and AQI thresholds.
 """
 
 import os
+from datetime import date, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -54,9 +55,15 @@ AQICN_STATIONS = [
 ]
 
 # =============================================================================
-# Feature Store Configuration
+# Supabase Feature Store Configuration
 # =============================================================================
-FEATURE_STORE_BACKEND = os.getenv("FEATURE_STORE_BACKEND", "local")  # "local" or "hopsworks"
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+SUPABASE_TABLE_NAME = os.getenv("SUPABASE_TABLE_NAME", "aqi_features")
+
+# =============================================================================
+# Hopsworks Model Registry Configuration
+# =============================================================================
 HOPSWORKS_API_KEY = os.getenv("HOPSWORKS_API_KEY", "")
 HOPSWORKS_HOST = os.getenv("HOPSWORKS_HOST", "eu-west.cloud.hopsworks.ai")
 HOPSWORKS_PROJECT_NAME = os.getenv("HOPSWORKS_PROJECT_NAME", "pearls_aqi_predictor")
@@ -161,22 +168,11 @@ XGBOOST_PARAMS = {
     "n_jobs": -1,
 }
 
-TENSORFLOW_PARAMS = {
-    "lstm_units": [64, 64],
-    "dense_units": 128,
-    "dropout_rate": 0.2,
-    "learning_rate": 0.001,
-    "batch_size": 32,
-    "epochs": 100,
-    "patience": 10,  # Early stopping
-}
-
 # Model fallback chain order (primary → fallback → emergency)
 MODEL_FALLBACK_CHAIN = [
     "xgboost",
     "random_forest",
     "ridge",
-    "tensorflow",
 ]
 
 # =============================================================================
@@ -207,7 +203,9 @@ ALERT_THRESHOLD = 200
 # Backfill Configuration
 # =============================================================================
 BACKFILL_START_DATE = "2023-01-01"
-BACKFILL_END_DATE = "2025-08-26"  # Yesterday
+BACKFILL_END_DATE = os.getenv(
+    "BACKFILL_END_DATE", (date.today() - timedelta(days=1)).isoformat()
+)
 BACKFILL_CHUNK_DAYS = 30  # Process in monthly chunks to avoid API limits
 
 # =============================================================================

@@ -8,10 +8,12 @@ on:
 
 env:
   AQICN_API_TOKEN: ${{ secrets.AQICN_API_TOKEN }}
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  SUPABASE_TABLE_NAME: aqi_features
   HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
   HOPSWORKS_HOST: ${{ secrets.HOPSWORKS_HOST || 'eu-west.cloud.hopsworks.ai' }}
   HOPSWORKS_PROJECT_NAME: ${{ secrets.HOPSWORKS_PROJECT_NAME || 'AQI_Abubakar' }}
-  FEATURE_STORE_BACKEND: hopsworks
 
 jobs:
   run-training-pipeline:
@@ -33,22 +35,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Restore feature store cache
-        uses: actions/cache@v4
-        with:
-          path: data/features/
-          key: feature-store-
-          restore-keys: |
-            feature-store-
-
-      - name: Restore model registry cache
-        uses: actions/cache@v4
-        with:
-          path: data/models/
-          key: model-registry-${{ github.run_id }}
-          restore-keys: |
-            model-registry-
-
       - name: Run Training Pipeline
         run: |
           python -m src.training_pipeline.trainer
@@ -58,25 +44,16 @@ jobs:
         run: |
           python -m src.analytics.explainability
           echo "SHAP analysis completed"
-        continue-on-error: true
 
-      - name: Save model registry cache
-        uses: actions/cache@v4
-        with:
-          path: data/models/
-          key: model-registry-${{ github.run_id }}
-
-      - name: Upload model artifacts
+      - name: Upload evaluation and explainability reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: model-artifacts-${{ github.run_number }}
+          name: analytics-reports-${{ github.run_number }}
           path: |
-            data/models/
             reports/
           retention-days: 30
 
       - name: Run Tests
         run: |
           pytest tests/ -v --tb=short
-        continue-on-error: true

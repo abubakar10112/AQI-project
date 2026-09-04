@@ -7,7 +7,6 @@ from src import config
 from src.training_pipeline.models.ridge_regression import RidgeModel
 from src.training_pipeline.models.random_forest import RandomForestModel
 from src.training_pipeline.models.xgboost_model import XGBoostModel
-from src.training_pipeline.models.tensorflow_model import TensorFlowModel
 from src.training_pipeline.evaluator import Evaluator
 from src.training_pipeline.model_registry import get_model_registry
 from src.feature_pipeline.feature_store import get_feature_store
@@ -22,22 +21,6 @@ class Trainer:
         self.registry = get_model_registry()
         self.feature_store = get_feature_store()
         self.evaluator = Evaluator()
-        
-    def _create_sequences(self, data: pd.DataFrame, target: pd.Series, lookback: int):
-        """Create sequences for LSTM."""
-        X, y = [], []
-        # Ensure we have enough data
-        if len(data) <= lookback:
-            return np.array([]), np.array([])
-            
-        # Convert to numpy for faster slicing
-        data_vals = data.values
-        target_vals = target.values
-        
-        for i in range(len(data_vals) - lookback):
-            X.append(data_vals[i:(i + lookback)])
-            y.append(target_vals[i + lookback])
-        return np.array(X), np.array(y)
         
     def _time_based_split(self, df: pd.DataFrame, train_ratio=0.8, val_ratio=0.1):
         """Split data preserving temporal order (no shuffling)."""
@@ -55,7 +38,7 @@ class Trainer:
         logger.info("Starting training pipeline...")
         
         # 1. Fetch training data from the configured feature store. The
-        # Hopsworks backend falls back to the local Parquet store on outage.
+        # Hopsworks is the single source of truth for training features.
         end_date = pd.Timestamp.now().ceil("D").strftime("%Y-%m-%d")
         df = self.feature_store.get_training_data(config.BACKFILL_START_DATE, end_date)
         if df is None or df.empty:
@@ -67,11 +50,24 @@ class Trainer:
             type(self.feature_store).__name__,
         )
         
-        # 2. Sort by time and split (80/10/10)
+        # 2. Train a genuine one-hour-ahead forecast, not a model that learns
+        # the AQI value from the same timestamp. Recursive inference expands
+        # this one-hour forecast to the required 72-hour horizon.
+        df = df.sort_index()
         if 'timestamp' in df.columns:
             df = df.sort_values('timestamp')
             
+        if config.TARGET not in df.columns:
+            logger.error(f"Target column {config.TARGET} not found in data")
+            return None
+        df = df.copy()
+        df["target_aqi_t_plus_1h"] = df[config.TARGET].shift(-1)
+        df = df.dropna(subset=["target_aqi_t_plus_1h"])
+
         n = len(df)
+        if n < 100:
+            logger.error("At least 100 clean hourly feature rows are required for training.")
+            return None
         train_idx = int(n * 0.8)
         val_idx = int(n * 0.9)
         
@@ -79,32 +75,17 @@ class Trainer:
         val_df = df.iloc[train_idx:val_idx]
         test_df = df.iloc[val_idx:]
         
-        # 3. Prepare features and target
-        if config.TARGET not in df.columns:
-            logger.error(f"Target column {config.TARGET} not found in data")
-            return None
-            
+        # 3. Prepare feature inputs and the one-hour-ahead target.
         features_to_use = [f for f in config.ALL_FEATURES if f in df.columns]
+        if set(config.ALL_FEATURES) - set(features_to_use):
+            logger.error("Training data is missing required feature columns.")
+            return None
         
         X_train_flat = train_df[features_to_use].values
-        y_train = train_df[config.TARGET].values
+        y_train = train_df["target_aqi_t_plus_1h"].values
         
         X_test_flat = test_df[features_to_use].values
-        y_test = test_df[config.TARGET].values
-        
-        # For LSTM, create sequences
-        X_seq, y_seq = self._create_sequences(df[features_to_use], df[config.TARGET], config.LOOKBACK_HOURS)
-        
-        seq_train_idx = int(len(X_seq) * 0.8)
-        seq_val_idx = int(len(X_seq) * 0.9)
-        
-        if len(X_seq) > 0:
-            X_train_seq = X_seq[:seq_train_idx]
-            y_train_seq = y_seq[:seq_train_idx]
-            X_test_seq = X_seq[seq_val_idx:]
-            y_test_seq = y_seq[seq_val_idx:]
-        else:
-            X_train_seq, y_train_seq, X_test_seq, y_test_seq = None, None, None, None
+        y_test = test_df["target_aqi_t_plus_1h"].values
         
         # 5. Initialize models
         models = {
@@ -112,16 +93,15 @@ class Trainer:
             'random_forest': (RandomForestModel(), X_train_flat, y_train, X_test_flat, y_test),
             'xgboost': (XGBoostModel(), X_train_flat, y_train, X_test_flat, y_test)
         }
-
-        if X_train_seq is not None and y_train_seq is not None and X_test_seq is not None and y_test_seq is not None:
-            try:
-                models['tensorflow'] = (TensorFlowModel(), X_train_seq, y_train_seq, X_test_seq, y_test_seq)
-                logger.info("TensorFlow LSTM model enabled.")
-            except Exception as exc:
-                logger.warning(f"TensorFlow LSTM could not be initialized: {exc}")
         
         results = {}
         trained_models = {}
+
+        # This is the minimum benchmark requested for a time-series forecast:
+        # next hour equals the latest observed AQI.
+        results["persistence_baseline"] = self.evaluator.evaluate(
+            y_test, test_df[config.TARGET].values
+        )
         
         # 6. Train and Evaluate
         for name, (model, X_tr, y_tr, X_te, y_te) in models.items():

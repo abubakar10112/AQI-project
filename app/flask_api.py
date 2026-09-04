@@ -67,17 +67,30 @@ def index():
     })
 
 
+PREDICTOR_INSTANCES = {}
+
+def get_predictor(model_name: str = "") -> Predictor:
+    key = model_name or "default"
+    if key not in PREDICTOR_INSTANCES:
+        PREDICTOR_INSTANCES[key] = Predictor(model_names=[model_name] if model_name else None)
+    return PREDICTOR_INSTANCES[key]
+
 @app.route('/api/predict', methods=['GET'])
 def get_predict():
     """Returns 3-day AQI forecast from Predictor."""
-    cached_data = get_from_cache('predict')
+    requested_model = request.args.get("model", default="").strip().lower()
+    allowed_models = set(config.MODEL_FALLBACK_CHAIN)
+    if requested_model and requested_model not in allowed_models:
+        return jsonify({"error": f"Unknown model '{requested_model}'."}), 400
+    cache_key = f"predict_{requested_model or 'default'}"
+    cached_data = get_from_cache(cache_key)
     if cached_data:
         return jsonify(cached_data)
     
     try:
-        predictor = Predictor()
+        predictor = get_predictor(requested_model)
         data = predictor.predict_next_3_days()
-        set_in_cache('predict', data)
+        set_in_cache(cache_key, data)
         return jsonify(data)
     except Exception as e:
         logger.error(f"Prediction failed: {e}")
@@ -104,9 +117,12 @@ def get_current():
         else:
             current_data = current_df.iloc[0].to_dict()
         
-        # Use LocalFeatureStore for instant 0.01s backfill
-        from src.feature_pipeline.feature_store import LocalFeatureStore
-        recent_df = LocalFeatureStore().get_latest_features(n_hours=48)
+        # Complete missing live fields from the authoritative remote store.
+        try:
+            recent_df = get_feature_store().get_latest_features(n_hours=48)
+        except Exception as exc:
+            logger.warning("Could not supplement current data from Supabase: %s", exc)
+            recent_df = None
         
         if recent_df is not None and not recent_df.empty:
             for col in current_data:
@@ -170,7 +186,7 @@ def get_history():
         return jsonify(data)
     except Exception as e:
         logger.error(f"Fetching history failed: {e}")
-        return jsonify({"data": [], "message": "Could not fetch history"})
+        return jsonify({"data": [], "message": "Could not fetch history from Supabase"}), 503
 
 @app.route('/api/models', methods=['GET'])
 def get_models():
@@ -193,7 +209,7 @@ def get_models():
         return jsonify(models)
     except Exception as e:
         logger.error(f"Fetching models metrics failed: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": str(e)}), 503
 
 @app.route('/api/explain', methods=['GET'])
 def get_explain():
@@ -257,9 +273,9 @@ def get_health():
             warnings.append("No trained models are registered yet.")
         if warnings:
             status["warnings"] = warnings
-            status["status"] = "healthy"
+            status["status"] = "degraded"
 
-        return jsonify(status)
+        return jsonify(status), (200 if status["status"] == "healthy" else 503)
     except Exception as exc:
         logger.error(f"Health check failed: {exc}")
         return jsonify({
@@ -268,7 +284,7 @@ def get_health():
             "feature_store": {"available": False},
             "model_registry": {"available": False},
             "error": str(exc),
-        }), 500
+        }), 503
 
 
 if __name__ == '__main__':

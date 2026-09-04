@@ -44,13 +44,6 @@ def run_backfill():
     for start_str, end_str in tqdm(chunks, desc="Backfilling monthly chunks"):
         logger.info(f"Processing chunk {start_str} to {end_str}")
         
-        # Avoid redundant downloads if we already have this data locally
-        # This is a naive check. A better approach would query the store index.
-        chunk_file = config.FEATURES_DIR / f"aqi_features_{end_str}.parquet"
-        if chunk_file.exists():
-             logger.info(f"Chunk file {chunk_file.name} already exists. Skipping.")
-             continue
-             
         weather_df = weather_client.fetch_historical(start_str, end_str)
         time.sleep(1) # Rate limit
         aq_df = aq_client.fetch_historical(start_str, end_str)
@@ -69,7 +62,13 @@ def run_backfill():
         features_df = engineer.engineer_features(merged_df)
         
         if not features_df.empty:
-            store.save_features(features_df)
+            try:
+                store.save_features(features_df)
+            except Exception as exc:
+                logger.exception("Backfill failed for %s to %s", start_str, end_str)
+                raise RuntimeError(
+                    f"Backfill aborted because Supabase rejected {start_str} to {end_str}."
+                ) from exc
         else:
             logger.warning(f"Engineered features empty for chunk {start_str} to {end_str}")
             

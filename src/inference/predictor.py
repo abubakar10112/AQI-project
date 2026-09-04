@@ -29,39 +29,6 @@ class ModelFallbackChain:
             except Exception as e:
                 logger.warning(f"Could not load model {name}: {e}")
 
-    @staticmethod
-    def _smooth_constant_predictions(preds: np.ndarray) -> np.ndarray:
-        """Introduce a clear 72-hour drift when a model output is effectively flat."""
-        preds = np.asarray(preds, dtype=float)
-        if preds.size == 0:
-            return preds
-
-        base = float(np.median(preds)) if preds.size else 0.0
-        hours = np.arange(preds.size)
-        drift = (
-            18.0 * np.sin(hours / 5.0)
-            + 10.0 * np.cos(hours / 16.0)
-            + np.linspace(-12.0, 12.0, preds.size)
-        )
-
-        if np.ptp(preds) < 8.0 or np.std(preds) < 1e-3:
-            preds = base + drift
-        else:
-            preds = preds + 0.35 * drift
-        return np.clip(preds, 0, 600)
-
-    @staticmethod
-    def _fallback_curve(last_known_aqi: float, horizon: int) -> np.ndarray:
-        """Create a realistic 3-day fallback curve that varies smoothly around the latest AQI."""
-        hours = np.arange(horizon)
-        curve = (
-            last_known_aqi
-            + 20.0 * np.sin(hours / 5.0)
-            + 10.0 * np.cos(hours / 18.0)
-            + np.linspace(-12.0, 12.0, horizon)
-        )
-        return np.clip(curve, 0, 600)
-
     def predict(self, features_df: pd.DataFrame) -> Dict[str, Any]:
         # Fallback base value: last known AQI
         last_known_aqi = features_df[config.TARGET].iloc[-1] if config.TARGET in features_df.columns else 100.0
@@ -76,25 +43,18 @@ class ModelFallbackChain:
             
             try:
                 preds = []
-                if name == 'tensorflow':
-                    # LSTM: Use full 48h window
-                    seq_features = features_df[features_to_use].values
-                    preds = model.predict(seq_features)
-                    preds = np.array(preds).flatten()
-                else:
-                    # Tabular models: Recursive prediction
-                    current_features = features_df[features_to_use].iloc[-1:].copy()
+                # Tabular models: Recursive prediction
+                current_features = features_df[features_to_use].iloc[-1:].astype(float).copy()
+                
+                for _ in range(config.FORECAST_HOURS):
+                    pred = model.predict(current_features.values)[0]
+                    preds.append(float(pred))
                     
-                    for _ in range(config.FORECAST_HOURS):
-                        pred = model.predict(current_features.values)[0]
-                        preds.append(float(pred))
-                        
-                        # Update lag features naively for the next step
-                        if 'aqi_lag_1h' in current_features.columns:
-                            current_features.at[current_features.index[0], 'aqi_lag_1h'] = pred
+                    # Update lag features naively for the next step
+                    if 'aqi_lag_1h' in current_features.columns:
+                        current_features.at[current_features.index[0], 'aqi_lag_1h'] = pred
                 
                 preds = np.array(preds).flatten()
-                preds = self._smooth_constant_predictions(preds)
                 
                 # Check for invalid outputs
                 if np.isnan(preds).any() or (preds < 0).any() or (preds > 600).any():
@@ -110,8 +70,8 @@ class ModelFallbackChain:
             except Exception as e:
                 logger.error(f"Model {name} prediction failed: {e}")
         
-        logger.error("All models failed. Using a damped fallback curve around the last known AQI.")
-        fallback_preds = self._fallback_curve(float(last_known_aqi), config.FORECAST_HOURS)
+        logger.error("All models failed. Using last known AQI values as fallback.")
+        fallback_preds = np.full(config.FORECAST_HOURS, last_known_aqi)
         
         return {
             'predictions': fallback_preds,
@@ -124,36 +84,19 @@ class Predictor:
     """
     Main predictor interface for the AQI Predictor project.
     """
-    def __init__(self):
-        self.fallback_chain = ModelFallbackChain()
+    def __init__(self, model_names: List[str] = None):
+        self.fallback_chain = ModelFallbackChain(model_names=model_names)
         self.feature_store = get_feature_store()
         
     def predict_next_3_days(self) -> Dict[str, Any]:
         """
         Generate predictions for the next 72 hours.
         """
-        # Try fetching real-time current features first
-        recent_data = None
         try:
-            from src.feature_pipeline.data_fetcher import fetch_all_current
-            from src.feature_pipeline.feature_engineer import FeatureEngineer
-            raw_live = fetch_all_current()
-            if raw_live is not None and not raw_live.empty:
-                fe = FeatureEngineer()
-                recent_data = fe.engineer_features(raw_live)
+            recent_data = self.feature_store.get_latest_features(n_hours=config.LOOKBACK_HOURS)
         except Exception as e:
-            logger.warning(f"Could not fetch real-time current features for prediction: {e}")
+            logger.warning(f"Failed to fetch features from Supabase: {e}")
             recent_data = None
-
-        if recent_data is None or recent_data.empty:
-            try:
-                recent_data = self.feature_store.get_latest_features(n_hours=config.LOOKBACK_HOURS)
-            except Exception:
-                recent_data = None
-
-        if recent_data is None or recent_data.empty:
-            from src.feature_pipeline.feature_store import LocalFeatureStore
-            recent_data = LocalFeatureStore().get_latest_features(n_hours=config.LOOKBACK_HOURS)
             
         if recent_data is None or recent_data.empty:
             raise ValueError("No recent data available for prediction.")

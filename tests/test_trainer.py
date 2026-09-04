@@ -196,7 +196,8 @@ class TestTrainer:
             }
         )
 
-        trainer = Trainer()
+        # This helper is pure; avoid opening the remote registry in a unit test.
+        trainer = Trainer.__new__(Trainer)
         train, val, test = trainer._time_based_split(data)
 
         # Train should be earliest, test should be latest

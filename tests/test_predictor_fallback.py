@@ -5,8 +5,10 @@ from src import config
 from src.inference.predictor import ModelFallbackChain
 
 
-def test_fallback_predictions_are_not_constant():
-    chain = ModelFallbackChain(model_names=[])
+def test_fallback_predictions_use_persistence_baseline():
+    chain = ModelFallbackChain.__new__(ModelFallbackChain)
+    chain.model_names = []
+    chain.models = {}
     df = pd.DataFrame({config.TARGET: [160.0] * 24})
 
     result = chain.predict(df)
@@ -14,4 +16,4 @@ def test_fallback_predictions_are_not_constant():
 
     assert result['model_used'] == 'fallback_last_known'
     assert len(preds) == config.FORECAST_HOURS
-    assert np.std(preds) > 0
+    assert np.all(preds == 160.0)

@@ -14,6 +14,12 @@ import src.config as config
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def _as_city_time(value) -> pd.Timestamp:
+    """Normalise all source timestamps to timezone-naive Lahore local time."""
+    timestamp = pd.to_datetime(value, utc=True)
+    return timestamp.tz_convert(config.CITY_TIMEZONE).tz_localize(None)
+
 class AQICNClient:
     """Client for AQICN Real-time API."""
     def __init__(self):
@@ -46,7 +52,7 @@ class AQICNClient:
                                 return None
                         
                         record = {
-                            "timestamp": pd.to_datetime(time_val),
+                            "timestamp": _as_city_time(time_val),
                             "us_aqi": _to_float(data["data"].get("aqi")),
                             "pm2_5": _to_float(iaqi.get("pm25", {}).get("v")),
                             "pm10": _to_float(iaqi.get("pm10", {}).get("v")),
@@ -77,6 +83,8 @@ class OpenMeteoWeatherClient:
         self.params = {
             "latitude": self.lat,
             "longitude": self.lon,
+            "timezone": config.CITY_TIMEZONE,
+            "past_days": 5,
             "hourly": "temperature_2m,relative_humidity_2m,surface_pressure,precipitation,cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
         }
 
@@ -98,6 +106,7 @@ class OpenMeteoWeatherClient:
     def fetch_historical(self, start_date: str, end_date: str) -> Optional[pd.DataFrame]:
         try:
             params = self.params.copy()
+            params.pop("past_days", None)
             params["start_date"] = start_date
             params["end_date"] = end_date
             response = requests.get(self.history_url, params=params, timeout=10)
@@ -122,6 +131,8 @@ class OpenMeteoAirQualityClient:
         self.params = {
             "latitude": self.lat,
             "longitude": self.lon,
+            "timezone": config.CITY_TIMEZONE,
+            "past_days": 5,
             "hourly": "pm2_5,pm10,nitrogen_dioxide,sulphur_dioxide,ozone,carbon_monoxide,us_aqi"
         }
 
@@ -143,6 +154,7 @@ class OpenMeteoAirQualityClient:
     def fetch_historical(self, start_date: str, end_date: str) -> Optional[pd.DataFrame]:
         try:
             params = self.params.copy()
+            params.pop("past_days", None)
             params["start_date"] = start_date
             params["end_date"] = end_date
             response = requests.get(self.url, params=params, timeout=10)
@@ -209,6 +221,15 @@ def run_feature_pipeline() -> bool:
         logger.error("No current source data was fetched; skipping feature-store update.")
         return False
 
+    # Open-Meteo's forecast response includes future hours. They are useful as
+    # weather inputs at inference time, but their AQI values must never be
+    # written as observed training targets.
+    current_hour = pd.Timestamp.now(tz=config.CITY_TIMEZONE).tz_localize(None).floor("h")
+    raw_current = raw_current.loc[raw_current.index <= current_hour]
+    if raw_current.empty:
+        logger.error("The data source returned no observed hourly records.")
+        return False
+
     store = get_feature_store()
     raw_columns = [config.TARGET, *config.WEATHER_FEATURES, *config.POLLUTANT_FEATURES]
     available_columns = [column for column in raw_columns if column in raw_current.columns]
@@ -230,8 +251,12 @@ def run_feature_pipeline() -> bool:
         logger.warning("Feature engineering produced no new rows to store.")
         return False
 
-    store.save_features(new_features)
-    logger.info("Stored %s newly engineered feature rows.", len(new_features))
+    try:
+        store.save_features(new_features)
+    except Exception:
+        logger.exception("Feature-store update failed; refusing to report a successful pipeline run.")
+        return False
+    logger.info("Stored %s newly engineered feature rows in Supabase.", len(new_features))
     return True
 
 if __name__ == "__main__":

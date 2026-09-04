@@ -4,9 +4,9 @@
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![Scikit-learn](https://img.shields.io/badge/Scikit--learn-1.3-orange)
-![TensorFlow](https://img.shields.io/badge/TensorFlow-2.14-red)
 ![XGBoost](https://img.shields.io/badge/XGBoost-2.0-green)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.28-ff4b4b)
+![Supabase](https://img.shields.io/badge/Supabase-Feature_Store-3ecf8e)
 
 ---
 
@@ -15,12 +15,14 @@
 An end-to-end machine learning pipeline for AQI forecasting featuring:
 
 - **Feature Pipeline** — Automated hourly data collection from AQICN & Open-Meteo APIs
-- **Training Pipeline** — 4 ML models (Ridge, Random Forest, XGBoost, LSTM) with daily retraining
+- **Training Pipeline** — 3 ML models (Ridge, Random Forest, XGBoost) with daily retraining
 - **Model Fallback Chain** — If one model fails, the system automatically cascades to the next
 - **Interactive Dashboard** — Streamlit + Flask web app with real-time predictions & alerts
 - **Explainability** — SHAP feature importance analysis
 - **CI/CD** — GitHub Actions for automated pipeline execution
 - **Lahore-Specific Features** — Smog season, crop burning, brick kiln activity detection
+- **Supabase Feature Store** — Managed PostgreSQL for feature storage & retrieval
+- **Hopsworks Model Registry** — Versioned model storage & deployment
 
 ## 🏗️ Architecture
 
@@ -29,13 +31,13 @@ Data Sources (AQICN + Open-Meteo)
         ↓
 Feature Pipeline (fetch → engineer → store)
         ↓
-Feature Store (Local Parquet / Hopsworks)
+Feature Store (Supabase / PostgreSQL)
         ↓
-Training Pipeline (Ridge, RF, XGBoost, LSTM → evaluate → register)
+Training Pipeline (Ridge, RF, XGBoost → evaluate → register)
         ↓
-Model Registry (Local / Hopsworks)
+Model Registry (Hopsworks)
         ↓
-Inference Engine (Fallback Chain: XGBoost → RF → Ridge → LSTM → Last Known)
+Inference Engine (Fallback Chain: XGBoost → RF → Ridge → Last Known)
         ↓
 Web Dashboard (Flask API + Streamlit UI)
 ```
@@ -54,12 +56,8 @@ python -m venv venv
 venv\Scripts\activate  # Windows
 # source venv/bin/activate  # Linux/Mac
 
-# Install the default local-backend app dependencies
+# Install dependencies
 pip install -r requirements.txt
-
-# Optional: enable the Hopsworks feature store / model registry
-# (Python 3.11–3.13 only; not supported on Python 3.14+)
-pip install "hopsworks[python]==4.8.5"
 ```
 
 ### 2. Configure Environment
@@ -68,27 +66,35 @@ pip install "hopsworks[python]==4.8.5"
 # Copy the example env file
 cp .env.example .env
 
-# Edit .env with your API keys
-# AQICN_API_TOKEN=your_token_here  (get from https://aqicn.org/data-platform/token/)
+# Edit .env with your credentials:
+# AQICN_API_TOKEN=your_token_here       (get from https://aqicn.org/data-platform/token/)
+# SUPABASE_URL=https://xxx.supabase.co  (get from https://supabase.com/dashboard)
+# SUPABASE_KEY=your_service_role_key
+# HOPSWORKS_API_KEY=your_hopsworks_key  (get from https://app.hopsworks.ai)
+# HOPSWORKS_PROJECT_NAME=your_project
 ```
 
-### 3. Backfill Historical Data
+### 3. Create Supabase Table
+
+Run the SQL in `create_supabase_table.sql` in your Supabase SQL Editor.
+
+### 4. Backfill Historical Data
 
 ```bash
 python -m src.feature_pipeline.backfill
 ```
 
-This fetches ~2 years of historical weather & air quality data for Lahore from Open-Meteo (free, no API key needed).
+This fetches ~2 years of historical weather & air quality data for Lahore from Open-Meteo (free, no API key needed) and stores it in Supabase.
 
-### 4. Train Models
+### 5. Train Models
 
 ```bash
 python -m src.training_pipeline.trainer
 ```
 
-Trains all 4 models and registers the best one.
+Trains all 3 models and registers the best one in Hopsworks.
 
-### 5. Launch Dashboard
+### 6. Launch Dashboard
 
 ```bash
 # Terminal 1: Start Flask API
@@ -112,29 +118,29 @@ AQI/
 │   ├── feature_pipeline/        # Data fetching & feature engineering
 │   │   ├── data_fetcher.py      # AQICN + Open-Meteo API clients
 │   │   ├── feature_engineer.py  # Feature computation
-│   │   ├── feature_store.py     # Dual-mode: Local/Hopsworks
+│   │   ├── feature_store.py     # Supabase feature store adapter
 │   │   └── backfill.py          # Historical data backfill
 │   ├── training_pipeline/       # Model training & evaluation
 │   │   ├── models/
 │   │   │   ├── ridge_regression.py
 │   │   │   ├── random_forest.py
-│   │   │   ├── xgboost_model.py
-│   │   │   └── tensorflow_model.py
+│   │   │   └── xgboost_model.py
 │   │   ├── trainer.py           # Training orchestrator
 │   │   ├── evaluator.py         # RMSE, MAE, R² metrics
-│   │   └── model_registry.py    # Model versioning & storage
+│   │   └── model_registry.py    # Hopsworks model versioning
 │   ├── inference/
 │   │   └── predictor.py         # Fallback chain + 3-day forecast
 │   └── analytics/
 │       ├── eda.py               # Exploratory Data Analysis
 │       └── explainability.py    # SHAP feature importance
 ├── app/
-│   ├── flask_api.py             # REST API (6 endpoints)
+│   ├── flask_api.py             # REST API (7 endpoints)
 │   └── streamlit_app.py         # Interactive dashboard
-├── data/                        # Local feature store (gitignored)
+├── data/                        # Deprecated local artifacts; not used at runtime
 ├── reports/                     # Generated reports & plots
 │   └── report_generator.py      # PDF report generator
 ├── tests/                       # Unit tests
+├── create_supabase_table.sql    # Supabase table DDL
 ├── requirements.txt
 ├── .env.example
 └── README.md
@@ -147,12 +153,11 @@ AQI/
 | Ridge Regression | Statistical baseline | Fast, interpretable |
 | Random Forest | Ensemble | Robust, handles non-linearity |
 | XGBoost | Gradient boosting | Best tabular performance |
-| LSTM (TensorFlow) | Deep learning | Captures temporal sequences |
 
 ### Model Fallback Chain
 
 ```
-XGBoost → Random Forest → Ridge → LSTM → Last Known AQI
+XGBoost → Random Forest → Ridge → Last Known AQI
 ```
 
 If a model errors, returns NaN, negative AQI, or >600, the system automatically tries the next model.
@@ -198,7 +203,11 @@ If a model errors, returns NaN, negative AQI, or >600, the system automatically 
 
 Set these GitHub Secrets:
 - `AQICN_API_TOKEN`
-- `HOPSWORKS_API_KEY` (when ready)
+- `SUPABASE_URL`
+- `SUPABASE_KEY`
+- `HOPSWORKS_API_KEY`
+- `HOPSWORKS_HOST`
+- `HOPSWORKS_PROJECT_NAME`
 
 ## 🧪 Testing
 

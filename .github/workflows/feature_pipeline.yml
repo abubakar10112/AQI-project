@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Run the hourly update or perform the initial historical Hopsworks backfill'
+        description: 'Run the hourly update or perform the initial historical Supabase backfill'
         required: true
         default: hourly
         type: choice
@@ -17,10 +17,12 @@ on:
 
 env:
   AQICN_API_TOKEN: ${{ secrets.AQICN_API_TOKEN }}
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  SUPABASE_TABLE_NAME: aqi_features
   HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
   HOPSWORKS_HOST: ${{ secrets.HOPSWORKS_HOST || 'eu-west.cloud.hopsworks.ai' }}
   HOPSWORKS_PROJECT_NAME: ${{ secrets.HOPSWORKS_PROJECT_NAME || 'AQI_Abubakar' }}
-  FEATURE_STORE_BACKEND: hopsworks
 
 jobs:
   run-feature-pipeline:
@@ -42,36 +44,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Restore feature store cache
-        uses: actions/cache@v4
-        with:
-          path: data/features/
-          key: feature-store-${{ github.run_id }}
-          restore-keys: |
-            feature-store-
-
       - name: Run hourly feature update
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.mode == 'hourly' }}
         run: |
           python -m src.feature_pipeline.data_fetcher
           echo "Hourly feature update completed successfully"
 
-      - name: Backfill Hopsworks feature store
+      - name: Backfill Supabase feature store
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'backfill' }}
         run: |
           python -m src.feature_pipeline.backfill
-          echo "Historical Hopsworks backfill completed successfully"
-
-      - name: Save feature store cache
-        uses: actions/cache@v4
-        with:
-          path: data/features/
-          key: feature-store-${{ github.run_id }}
-
-      - name: Upload feature artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: feature-data-${{ github.run_number }}
-          path: data/features/
-          retention-days: 7
+          echo "Historical Supabase backfill completed successfully"

@@ -166,17 +166,11 @@ def fetch_api(endpoint, params=None):
         return None
 
 def fallback_current_data():
-    store = get_feature_store()
-    df = None
     try:
-        df = store.get_latest_features(n_hours=24)
-    except Exception:
-        pass
-        
-    if df is None or df.empty:
-        # Fallback to local store parquet if feature store returns None
-        from src.feature_pipeline.feature_store import LocalFeatureStore
-        df = LocalFeatureStore().get_latest_features(n_hours=24)
+        df = get_feature_store().get_latest_features(n_hours=24)
+    except Exception as exc:
+        st.error(f"Supabase is unavailable: {exc}")
+        return None
 
     if df is not None and not df.empty:
         valid_df = df[df[config.TARGET].notna()] if config.TARGET in df.columns else df
@@ -194,22 +188,12 @@ def fallback_current_data():
             'wind_speed_10m': row.get('wind_speed_10m', 10.0),
             'wind_direction_10m': row.get('wind_direction_10m', 180),
         }
-    return {
-        'us_aqi': 75.0,
-        'category': 'Moderate',
-        'color': '#ffde33',
-        'emoji': '🟡',
-        'health_advisory': 'Acceptable air quality.',
-        'temperature_2m': 25.0,
-        'relative_humidity_2m': 60.0,
-        'wind_speed_10m': 10.0,
-        'wind_direction_10m': 180,
-    }
+    return None
 
 def main():
     # ------------------ Sidebar ------------------
     st.sidebar.title("Configuration")
-    model_selector = st.sidebar.selectbox("Model Selector", ["XGBoost", "Random Forest", "Ridge", "LSTM"])
+    model_selector = st.sidebar.selectbox("Model Selector", ["XGBoost", "Random Forest", "Ridge"])
     history_days = st.sidebar.slider("Historical View (Days)", min_value=7, max_value=90, value=30)
     
     if st.sidebar.button("Refresh Data"):
@@ -259,7 +243,12 @@ def main():
 
     # ------------------ Row 2: 3-Day Forecast Chart ------------------
     st.subheader("3-Day Forecast")
-    forecast_data = fetch_api("/predict")
+    selected_model_key = {
+        "XGBoost": "xgboost",
+        "Random Forest": "random_forest",
+        "Ridge": "ridge",
+    }[model_selector]
+    forecast_data = fetch_api("/predict", params={"model": selected_model_key})
     
     if forecast_data and 'hourly_predictions' in forecast_data:
         df_forecast = pd.DataFrame(forecast_data['hourly_predictions'])
