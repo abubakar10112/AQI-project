@@ -145,8 +145,8 @@ AQI/
 │   ├── flask_api.py             # REST API (7 endpoints)
 │   └── streamlit_app.py         # Interactive dashboard
 ├── data/                        # Deprecated local artifacts; not used at runtime
-├── reports/                     # Generated reports & plots
-│   └── report_generator.py      # PDF report generator
+├── reports/                     # Project documentation & evaluation results
+│   └── FINAL_REPORT.md          # Comprehensive technical report
 ├── tests/                       # Unit tests
 ├── create_supabase_table.sql    # Supabase table DDL
 ├── requirements.txt
@@ -222,14 +222,6 @@ Set these GitHub Secrets:
 ```bash
 pytest tests/ -v --tb=short
 ```
-
-## 📝 Generate Report
-
-```bash
-python reports/report_generator.py
-```
-
-Generates a comprehensive PDF report in `reports/`.
 
 ## 📜 License
 
