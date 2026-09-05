@@ -5,6 +5,7 @@
 - **Target Location**: Lahore, Punjab, Pakistan (31.5204° N, 74.3587° E)
 - **Forecast Horizon**: 72 Hours (3 Days Ahead, Hourly Resolution & Daily Aggregates)
 - **Deployment Stack**: 100% Serverless (GitHub Actions, Supabase PostgreSQL, Hopsworks Model Registry, Streamlit Cloud & Flask)
+- **Live Web Application**: [Lahore AQI Predictor on Streamlit](https://aqi-project-c3cg2qetkj3sdwcvzcdwcf.streamlit.app/)
 - **Date**: September 2026
 
 ---
@@ -110,7 +111,7 @@ Using SHAP (SHapley Additive exPlanations) TreeExplainer on the champion XGBoost
 - [x] **Feature Pipeline**: Live hourly ingestion from AQICN and Open-Meteo with 35 engineered features.
 - [x] **Historical Backfill**: Over 2,000 historical hourly records loaded into Supabase.
 - [x] **Daily Automated Retraining**: Daily cron updating model weights, metrics, and SHAP artifacts.
-- [x] **Web Applications**: Full-width glassmorphic Streamlit dashboard (`localhost:8501`) + Flask REST API (`localhost:5000`).
+- [x] **Web Applications**: Full-width glassmorphic Streamlit dashboard ([Live Deployment](https://aqi-project-c3cg2qetkj3sdwcvzcdwcf.streamlit.app/) • Local: `localhost:8501`) + Flask REST API (`localhost:5000`).
 - [x] **Explainability & EDA**: SHAP feature importance charts and 30-day interactive moving-average trends.
 - [x] **Hazardous AQI Alerts**: Automated threshold warnings when AQI is projected to exceed 150/200/300.
 - [x] **Automated Test Suite**: 32/32 tests passing in PyTest.

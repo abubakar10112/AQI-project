@@ -7,6 +7,9 @@
 ![XGBoost](https://img.shields.io/badge/XGBoost-2.0-green)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.28-ff4b4b)
 ![Supabase](https://img.shields.io/badge/Supabase-Feature_Store-3ecf8e)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://aqi-project-c3cg2qetkj3sdwcvzcdwcf.streamlit.app/)
+
+🔗 **Live Deployment**: [Lahore AQI Predictor | Live Environmental Intelligence · Streamlit](https://aqi-project-c3cg2qetkj3sdwcvzcdwcf.streamlit.app/)
 
 ---
 
