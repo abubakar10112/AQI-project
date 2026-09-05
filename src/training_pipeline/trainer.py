@@ -81,17 +81,32 @@ class Trainer:
             logger.error("Training data is missing required feature columns.")
             return None
         
-        X_train_flat = train_df[features_to_use].values
-        y_train = train_df["target_aqi_t_plus_1h"].values
-        
-        X_test_flat = test_df[features_to_use].values
-        y_test = test_df["target_aqi_t_plus_1h"].values
-        
-        # 5. Initialize models
+        X_val_flat = val_df[features_to_use].values
+        y_val = val_df["target_aqi_t_plus_1h"].values
+
+        # 4. Hyperparameter Optimization via Optuna (if enabled)
+        xgb_params = {}
+        rf_params = {}
+        ridge_params = {}
+
+        if tune_hyperparameters:
+            try:
+                from src.training_pipeline.hyperparameter_tuner import HyperparameterTuner
+                tuner = HyperparameterTuner(n_trials=15)
+                logger.info("Running Optuna hyperparameter search for XGBoost...")
+                xgb_params = tuner.tune_xgboost(X_train_flat, y_train, X_val_flat, y_val)
+                logger.info("Running Optuna hyperparameter search for Random Forest...")
+                rf_params = tuner.tune_random_forest(X_train_flat, y_train, X_val_flat, y_val)
+                logger.info("Running Optuna hyperparameter search for Ridge...")
+                ridge_params = tuner.tune_ridge(X_train_flat, y_train, X_val_flat, y_val)
+            except Exception as e:
+                logger.warning(f"Optuna tuning failed, using default parameters: {e}")
+
+        # 5. Initialize models with best parameters
         models = {
-            'ridge': (RidgeModel(), X_train_flat, y_train, X_test_flat, y_test),
-            'random_forest': (RandomForestModel(), X_train_flat, y_train, X_test_flat, y_test),
-            'xgboost': (XGBoostModel(), X_train_flat, y_train, X_test_flat, y_test)
+            'ridge': (RidgeModel(**ridge_params), X_train_flat, y_train, X_test_flat, y_test),
+            'random_forest': (RandomForestModel(**rf_params), X_train_flat, y_train, X_test_flat, y_test),
+            'xgboost': (XGBoostModel(**xgb_params), X_train_flat, y_train, X_test_flat, y_test)
         }
         
         results = {}
@@ -141,5 +156,10 @@ class Trainer:
         return results
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="AQI Model Training Pipeline")
+    parser.add_argument("--tune", action="store_true", help="Run Optuna hyperparameter search")
+    args = parser.parse_args()
+
     trainer = Trainer()
-    trainer.run_pipeline()
+    trainer.run_pipeline(tune_hyperparameters=args.tune)

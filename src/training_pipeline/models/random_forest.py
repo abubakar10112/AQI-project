@@ -7,10 +7,11 @@ from src import config
 class RandomForestModel:
     """Random Forest model for AQI prediction."""
     
-    def __init__(self):
+    def __init__(self, **custom_params):
         self._name = 'random_forest'
         self.scaler = StandardScaler()
-        self.rf = RandomForestRegressor(**config.RANDOM_FOREST_PARAMS)
+        merged_params = {**config.RANDOM_FOREST_PARAMS, **custom_params}
+        self.rf = RandomForestRegressor(**merged_params)
         self.model = Pipeline([
             ('scaler', self.scaler),
             ('rf', self.rf)

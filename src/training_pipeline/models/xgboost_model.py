@@ -9,11 +9,12 @@ logger = logging.getLogger(__name__)
 class XGBoostModel:
     """XGBoost model for AQI prediction."""
     
-    def __init__(self):
+    def __init__(self, **custom_params):
         self._name = 'xgboost'
         self.scaler = StandardScaler()
+        merged_params = {**config.XGBOOST_PARAMS, **custom_params}
         self.model = xgb.XGBRegressor(
-            **config.XGBOOST_PARAMS,
+            **merged_params,
             early_stopping_rounds=10
         )
         

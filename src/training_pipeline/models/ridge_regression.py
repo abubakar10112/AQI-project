@@ -7,12 +7,13 @@ from src import config
 class RidgeModel:
     """Ridge regression model with polynomial features for AQI prediction."""
     
-    def __init__(self):
+    def __init__(self, degree: int = 2, **custom_params):
         self._name = 'ridge'
+        merged_params = {**config.RIDGE_PARAMS, **custom_params}
         self.model = Pipeline([
             ('scaler', StandardScaler()),
-            ('poly', PolynomialFeatures(degree=2)),
-            ('ridge', Ridge(**config.RIDGE_PARAMS))
+            ('poly', PolynomialFeatures(degree=degree)),
+            ('ridge', Ridge(**merged_params))
         ])
         
     @property
