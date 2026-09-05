@@ -52,7 +52,7 @@ def internal_error(e):
 def index():
     """Project root endpoint for quick health checks and routing."""
     return jsonify({
-        "name": "Pearls AQI Predictor",
+        "name": "Lahore AQI Predictor",
         "status": "ok",
         "forecast_horizon_days": 3,
         "api_endpoints": [

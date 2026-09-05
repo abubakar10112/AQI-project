@@ -88,7 +88,7 @@ def _cleanup_flask():
 _launch_flask_api()
 atexit.register(_cleanup_flask)
 
-st.set_page_config(page_title='Pearls AQI Predictor - Lahore', layout='wide', page_icon='🌍')
+st.set_page_config(page_title='Lahore AQI Predictor', layout='wide', page_icon='🌍')
 
 st.markdown(
     """
@@ -214,12 +214,12 @@ def main():
         st.cache_data.clear()
         
     st.sidebar.markdown("### About")
-    st.sidebar.info("Pearls AQI Predictor forecasts Air Quality Index for Lahore, Pakistan using ML models.")
+    st.sidebar.info("Lahore AQI Predictor forecasts Air Quality Index for Lahore, Pakistan using ML models.")
     
     # ------------------ Header Section ------------------
-    st.markdown("<div class='title-badge'>AQI Forecast</div>", unsafe_allow_html=True)
-    st.markdown("<div class='main-header'>Pearls AQI Predictor — Lahore</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-header'>Real-time Air Quality Monitoring & 3-Day Forecast</div>", unsafe_allow_html=True)
+    st.markdown("<div class='title-badge'>LIVE AIR QUALITY FORECAST</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>Lahore AQI Predictor</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-header'>Real-time Air Quality Monitoring & 3-Day Machine Learning Forecast</div>", unsafe_allow_html=True)
     
     current_data = fetch_api("/current")
     if current_data is None:
@@ -228,30 +228,80 @@ def main():
     if current_data:
         st.markdown(f"**Last Updated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
-        # ------------------ Row 1: Current Conditions ------------------
+        # ------------------ Row 1: Current Conditions (Modern Cards) ------------------
+        aqi_val = float(current_data.get('us_aqi', 0))
+        category = current_data.get('category', 'Unknown')
+        emoji = current_data.get('emoji', '🌫️')
+        color = current_data.get('color', '#38bdf8')
+        temp = float(current_data.get('temperature_2m', 0))
+        hum = float(current_data.get('relative_humidity_2m', 0))
+        wind = float(current_data.get('wind_speed_10m', 0))
+        pressure = float(current_data.get('surface_pressure', 1013))
+        advisory = current_data.get('health_advisory', 'No specific health advisory.')
+
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            st.markdown('<div class="metric-container">', unsafe_allow_html=True)
-            st.metric(
-                label=f"Current AQI ({current_data.get('category', 'Unknown')} {current_data.get('emoji', '')})",
-                value=f"{current_data.get('us_aqi', 0):.1f}"
+            st.markdown(
+                f"""
+                <div style="background: rgba(20, 30, 44, 0.85); border: 1px solid rgba(255,255,255,0.08); border-top: 4px solid {color}; border-radius: 14px; padding: 1.1rem 1.2rem; min-height: 160px; display: flex; flex-direction: column; justify-content: space-between;">
+                    <div style="font-size: 0.76rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">Current Air Quality</div>
+                    <div style="display: flex; align-items: baseline; gap: 0.4rem; margin: 0.3rem 0;">
+                        <span style="font-size: 2.6rem; font-weight: 800; color: #ffffff; line-height: 1;">{aqi_val:.1f}</span>
+                        <span style="font-size: 0.95rem; font-weight: 600; color: #94a3b8;">AQI</span>
+                    </div>
+                    <div style="display: inline-flex; align-items: center; gap: 0.35rem; background: {color}22; border: 1px solid {color}55; color: {color}; font-size: 0.8rem; font-weight: 700; padding: 0.25rem 0.6rem; border-radius: 999px; width: fit-content;">
+                        <span>{emoji}</span> <span>{category}</span>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
             )
-            st.markdown('</div>', unsafe_allow_html=True)
         with c2:
-            temp = current_data.get('temperature_2m', 0)
-            hum = current_data.get('relative_humidity_2m', 0)
-            st.markdown('<div class="metric-container">', unsafe_allow_html=True)
-            st.metric(label="Temperature / Humidity", value=f"{temp}°C / {hum}%")
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown(
+                f"""
+                <div style="background: rgba(20, 30, 44, 0.85); border: 1px solid rgba(255,255,255,0.08); border-top: 4px solid #38bdf8; border-radius: 14px; padding: 1.1rem 1.2rem; min-height: 160px; display: flex; flex-direction: column; justify-content: space-between;">
+                    <div style="font-size: 0.76rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">Temperature & Humidity</div>
+                    <div style="display: flex; align-items: baseline; gap: 0.3rem; margin: 0.3rem 0;">
+                        <span style="font-size: 2.3rem; font-weight: 800; color: #ffffff; line-height: 1;">{temp:.1f}°C</span>
+                    </div>
+                    <div style="font-size: 0.82rem; color: #93c5fd; font-weight: 500;">
+                        💧 <b>{hum:.0f}%</b> Humidity • <b>{pressure:.0f}</b> hPa
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
         with c3:
-            wind = current_data.get('wind_speed_10m', 0)
-            st.markdown('<div class="metric-container">', unsafe_allow_html=True)
-            st.metric(label="Wind Speed", value=f"{wind} km/h")
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown(
+                f"""
+                <div style="background: rgba(20, 30, 44, 0.85); border: 1px solid rgba(255,255,255,0.08); border-top: 4px solid #818cf8; border-radius: 14px; padding: 1.1rem 1.2rem; min-height: 160px; display: flex; flex-direction: column; justify-content: space-between;">
+                    <div style="font-size: 0.76rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">Wind Conditions</div>
+                    <div style="display: flex; align-items: baseline; gap: 0.3rem; margin: 0.3rem 0;">
+                        <span style="font-size: 2.3rem; font-weight: 800; color: #ffffff; line-height: 1;">{wind:.1f}</span>
+                        <span style="font-size: 0.95rem; font-weight: 600; color: #94a3b8;">km/h</span>
+                    </div>
+                    <div style="font-size: 0.82rem; color: #a5b4fc; font-weight: 500;">
+                        🧭 Natural atmospheric dispersion
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
         with c4:
-            st.markdown('<div class="status-box">', unsafe_allow_html=True)
-            st.write(current_data.get('health_advisory', 'No specific health advisory.'))
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown(
+                f"""
+                <div style="background: rgba(20, 30, 44, 0.85); border: 1px solid rgba(255,255,255,0.08); border-top: 4px solid {color}; border-radius: 14px; padding: 1.1rem 1.2rem; min-height: 160px; display: flex; flex-direction: column; justify-content: space-between;">
+                    <div style="font-size: 0.76rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">Health Guidance</div>
+                    <div style="font-size: 0.84rem; color: #e2e8f0; line-height: 1.4; margin: 0.2rem 0; font-weight: 500;">
+                        {advisory}
+                    </div>
+                    <div style="font-size: 0.75rem; color: #94a3b8;">
+                        Target: Sensitive & general populations
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
             
     st.divider()
 

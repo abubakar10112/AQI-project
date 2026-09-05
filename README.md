@@ -1,4 +1,4 @@
-# 🌍 Pearls AQI Predictor — Lahore
+# 🌍 Lahore AQI Predictor
 
 **Predict the Air Quality Index (AQI) in Lahore, Pakistan for the next 3 days using a 100% serverless ML stack.**
 

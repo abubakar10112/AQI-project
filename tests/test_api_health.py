@@ -15,7 +15,7 @@ def test_root_route_returns_project_status(client):
     assert response.status_code == 200
     body = response.get_json()
     assert body["status"] == "ok"
-    assert body["name"] == "Pearls AQI Predictor"
+    assert body["name"] == "Lahore AQI Predictor"
 
 
 def test_health_route_contains_system_status(client):
