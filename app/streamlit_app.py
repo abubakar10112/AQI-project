@@ -151,31 +151,36 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=300)
+def _fetch_api_cached(url, params_tuple):
+    res = requests.get(url, params=dict(params_tuple) if params_tuple else None, timeout=20)
+    res.raise_for_status()
+    return res.json()
+
 def fetch_api(endpoint, params=None):
     url = f"{API_URL}{endpoint}"
+    params_tuple = tuple(sorted(params.items())) if params else ()
     try:
-        res = requests.get(url, params=params, timeout=20)
-        res.raise_for_status()
-        return res.json()
+        return _fetch_api_cached(url, params_tuple)
     except Exception as e:
-        st.warning(
-            f"Failed to fetch from API ({url}). "
-            "Make sure the Flask backend is running or set AQI_API_URL to the correct server address."
-        )
+        logger.debug(f"API fetch {url} failed: {e}")
         return None
 
 def fallback_current_data():
     try:
-        df = get_feature_store().get_latest_features(n_hours=24)
+        df = get_feature_store().get_latest_features(n_hours=48)
     except Exception as exc:
         st.error(f"Supabase is unavailable: {exc}")
         return None
 
     if df is not None and not df.empty:
-        valid_df = df[df[config.TARGET].notna()] if config.TARGET in df.columns else df
-        row = valid_df.iloc[-1].to_dict() if not valid_df.empty else df.iloc[-1].to_dict()
-        aqi = row.get(config.TARGET, 160.0)
+        now = pd.Timestamp.now(tz=config.CITY_TIMEZONE).tz_localize(None)
+        observed_df = df.loc[df.index <= now]
+        if observed_df.empty:
+            observed_df = df
+        valid_df = observed_df[observed_df[config.TARGET].notna()] if config.TARGET in observed_df.columns else observed_df
+        row = valid_df.iloc[-1].to_dict() if not valid_df.empty else observed_df.iloc[-1].to_dict()
+        aqi = float(row.get(config.TARGET, 120.0))
         cat = config.get_aqi_category(aqi)
         return {
             'us_aqi': aqi,
@@ -183,12 +188,21 @@ def fallback_current_data():
             'color': cat['color'],
             'emoji': cat['emoji'],
             'health_advisory': config.get_health_advisory(aqi),
-            'temperature_2m': row.get('temperature_2m', 25.0),
-            'relative_humidity_2m': row.get('relative_humidity_2m', 60.0),
-            'wind_speed_10m': row.get('wind_speed_10m', 10.0),
-            'wind_direction_10m': row.get('wind_direction_10m', 180),
+            'temperature_2m': float(row.get('temperature_2m', 25.0)),
+            'relative_humidity_2m': float(row.get('relative_humidity_2m', 60.0)),
+            'wind_speed_10m': float(row.get('wind_speed_10m', 10.0)),
+            'wind_direction_10m': float(row.get('wind_direction_10m', 180)),
         }
     return None
+
+def fallback_forecast_data(model_name: str = "xgboost"):
+    try:
+        from src.inference.predictor import Predictor
+        predictor = Predictor(model_names=[model_name])
+        return predictor.predict_next_3_days()
+    except Exception as exc:
+        logger.warning(f"Local forecast fallback failed: {exc}")
+        return None
 
 def main():
     # ------------------ Sidebar ------------------
@@ -248,6 +262,8 @@ def main():
         "Ridge": "ridge",
     }[model_selector]
     forecast_data = fetch_api("/predict", params={"model": selected_model_key})
+    if not forecast_data:
+        forecast_data = fallback_forecast_data(selected_model_key)
     model_name = (forecast_data.get('model_used') or selected_model_key).upper() if forecast_data else selected_model_key.upper()
     st.subheader(f"3-Day Forecast (Model: {model_name})")
     

@@ -110,12 +110,17 @@ def get_current():
         if current_df is None or current_df.empty:
             return jsonify({"error": "No current data available"}), 503
         
-        # Filter for latest valid real-time AQI row
-        valid_df = current_df[current_df['us_aqi'].notna()]
+        # Filter for latest observed real-time AQI row (not future forecast hours)
+        now = pd.Timestamp.now(tz=config.CITY_TIMEZONE).tz_localize(None)
+        observed_df = current_df.loc[current_df.index <= now]
+        if observed_df.empty:
+            observed_df = current_df
+        
+        valid_df = observed_df[observed_df['us_aqi'].notna()]
         if not valid_df.empty:
             current_data = valid_df.iloc[-1].to_dict()
         else:
-            current_data = current_df.iloc[0].to_dict()
+            current_data = observed_df.iloc[-1].to_dict()
         
         # Complete missing live fields from the authoritative remote store.
         try:
