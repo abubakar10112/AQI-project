@@ -242,7 +242,14 @@ def main():
     st.divider()
 
     # ------------------ Row 2: 3-Day Forecast (Individual Days) ------------------
-    st.subheader(f"3-Day Forecast (Model: {forecast_data.get('model_used', 'N/A').upper()})")
+    selected_model_key = {
+        "XGBoost": "xgboost",
+        "Random Forest": "random_forest",
+        "Ridge": "ridge",
+    }[model_selector]
+    forecast_data = fetch_api("/predict", params={"model": selected_model_key})
+    model_name = (forecast_data.get('model_used') or selected_model_key).upper() if forecast_data else selected_model_key.upper()
+    st.subheader(f"3-Day Forecast (Model: {model_name})")
     
     if forecast_data and 'daily_summary' in forecast_data and forecast_data['daily_summary']:
         days = forecast_data['daily_summary'][:3]
