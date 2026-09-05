@@ -31,16 +31,24 @@ Data Sources (AQICN + Open-Meteo)
         ↓
 Feature Pipeline (fetch → engineer → store)
         ↓
-Feature Store (Supabase / PostgreSQL)
+Feature Store (Supabase PostgreSQL / Free Serverless DB)
         ↓
 Training Pipeline (Ridge, RF, XGBoost → evaluate → register)
         ↓
-Model Registry (Hopsworks)
+Model Registry (Hopsworks Cloud)
         ↓
 Inference Engine (Fallback Chain: XGBoost → RF → Ridge → Last Known)
         ↓
 Web Dashboard (Flask API + Streamlit UI)
 ```
+
+### 💡 Architectural Rationale: Why Supabase for Feature Store?
+
+1. **Hopsworks Free Tier Limits & Paywalls**: Hopsworks Cloud enforces strict storage and credit limits on free accounts. Continuous 24/7 hourly ingestion runs (720 writes/month) quickly exhaust free quotas, resulting in `402 Payment Required` or suspended feature ingestion unless upgraded to expensive enterprise tiers.
+2. **Hibernation Cold Starts & 504 Timeouts**: Free Hopsworks shared clusters hibernate during inactive periods. Waking up requires 45–90 seconds, causing serverless runners (Streamlit Cloud and GitHub Actions) to fail with `504 Gateway Timeouts`.
+3. **Heavy PySpark / JVM Bloat**: The Hopsworks Feature Store client (`hsfs`) relies on complex PySpark and Java dependencies that frequently cause binary conflicts and out-of-memory errors on lightweight serverless containers.
+4. **The Supabase Advantage**: Supabase provides a 100% free serverless PostgreSQL database with 500 MB storage, instant sub-80ms PostgREST HTTP queries, atomic primary key `(timestamp, city)` deduplication, and zero JVM/Java requirements.
+5. **Separation of Responsibilities**: Hopsworks is retained exclusively for its greatest strength without paywall risk—the **Model Registry** (`hsml`) for versioning models and metrics—while Supabase provides rock-solid, high-frequency feature storage.
 
 ## 🚀 Quick Start
 

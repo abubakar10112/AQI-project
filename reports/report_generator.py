@@ -48,7 +48,7 @@ class AQIReportGenerator:
         self.pdf.add_page()
         self.pdf.set_font("Helvetica", "B", 26)
         self.pdf.cell(0, 40, "", new_x="LMARGIN", new_y="NEXT")
-        self.pdf.cell(0, 15, "Pearls AQI Predictor", new_x="LMARGIN", new_y="NEXT", align="C")
+        self.pdf.cell(0, 15, "Lahore AQI Predictor", new_x="LMARGIN", new_y="NEXT", align="C")
         self.pdf.set_font("Helvetica", "", 15)
         self.pdf.cell(0, 10, f"Air Quality Index Forecasting for {CITY_NAME}, {CITY_COUNTRY}", new_x="LMARGIN", new_y="NEXT", align="C")
         self.pdf.cell(0, 15, "", new_x="LMARGIN", new_y="NEXT")
@@ -103,7 +103,7 @@ class AQIReportGenerator:
         self.pdf.add_page()
         self._add_section_header("1. Executive Summary")
         self._add_paragraph(
-            f"This report documents the Pearls AQI Predictor, an end-to-end machine learning "
+            f"This report documents the Lahore AQI Predictor, an end-to-end machine learning "
             f"system for forecasting Air Quality Index (AQI) in {CITY_NAME}, {CITY_COUNTRY} "
             f"for the next 3 days (72 hours). The system uses a 100% serverless architecture "
             f"with automated data collection, feature engineering, model training, and real-time "
@@ -121,30 +121,57 @@ class AQIReportGenerator:
         self._add_paragraph(
             "The system consists of four main pipelines:\n"
             "1. Feature Pipeline: Fetches raw weather and pollutant data from AQICN and "
-            "Open-Meteo APIs, computes features, and stores them in the Feature Store.\n"
-            "2. Training Pipeline: Fetches historical features, trains multiple ML models, "
-            "evaluates performance, and registers the best model.\n"
-            "3. Inference Pipeline: Loads the best model, generates 3-day forecasts with "
-            "a model fallback chain for reliability.\n"
-            "4. Web Dashboard: Displays real-time predictions, historical trends, and "
-            "model explanations via Streamlit + Flask."
+            "Open-Meteo APIs, computes 35 features, and stores them in the Supabase Feature Store.\n"
+            "2. Training Pipeline: Fetches historical features from Supabase, trains multiple ML models, "
+            "evaluates performance, and registers the best model in Hopsworks Model Registry.\n"
+            "3. Inference Pipeline: Loads the model, generates 72-hour recursive forecasts conditioned "
+            "on future weather, and enforces an automatic model fallback cascade.\n"
+            "4. Web Dashboard: Displays real-time predictions, daily forecast cards, historical trends, "
+            "and SHAP model explanations via Streamlit + Flask."
         )
 
         self._add_subsection_header("2.1 Technology Stack")
         tech_data = [
             ["Python 3.12", "Core programming language"],
-            ["Scikit-learn, XGBoost", "Gradient boosting & ensemble ML models"],
-            ["TensorFlow (LSTM)", "Deep learning sequence modeling"],
-            ["Hopsworks / Local Parquet", "Dual-mode Feature Store"],
-            ["AQICN + Open-Meteo", "Real-time and historical data sources"],
-            ["Streamlit + Flask", "Interactive dashboard & REST API"],
-            ["GitHub Actions", "CI/CD automation pipelines"],
-            ["SHAP", "Model explainability & feature importance"],
+            ["Scikit-learn", "Ridge Regression, Random Forest, metrics & scalers"],
+            ["XGBoost", "High-performance gradient boosting time-series forecaster"],
+            ["Supabase (PostgreSQL)", "Serverless Feature Store with instant HTTP ingestion"],
+            ["Hopsworks", "Serverless Model Registry for versioning & artifacts"],
+            ["AQICN + Open-Meteo", "Real-time telemetry and historical backfill APIs"],
+            ["Streamlit + Flask", "Full-width glassmorphic UI & RESTful API"],
+            ["GitHub Actions", "Automated hourly/daily serverless CI/CD"],
+            ["SHAP", "Model explainability & feature attribution"],
         ]
         self._add_table(
             ["Technology", "Purpose"],
             tech_data,
             [55, 135],
+        )
+
+        self._add_subsection_header("2.2 Feature Store Architecture: Why Supabase Over Hopsworks")
+        self._add_paragraph(
+            "While Hopsworks was evaluated for feature storage, several critical operational limitations "
+            "led to adopting Supabase PostgreSQL as the primary serverless feature store:\n\n"
+            "1. Free Tier Limits & Paywalls: Hopsworks Cloud enforces strict storage and compute credit "
+            "limits on free accounts. Continuous hourly feature ingestion rapidly exhausts free credits, "
+            "triggering paywall blocks or project suspensions.\n"
+            "2. Inactivity Shutdowns & Network Latency: Inactive Hopsworks free clusters hibernate, causing "
+            "504 Gateway Timeouts, 30-60 second cold-start delays, and failed CI/CD workflow executions.\n"
+            "3. Heavy Dependency Overhead: Hopsworks HSFS relies on PySpark and JVM dependencies, which "
+            "frequently cause installation failures and memory limits on lightweight serverless containers.\n"
+            "4. Supabase Advantages: Supabase provides a 100% free serverless PostgreSQL database with generous "
+            "limits, sub-100ms PostgREST HTTP queries, atomic primary key upserts for duplicate prevention, "
+            "and zero JVM requirements.\n"
+            "5. Optimal Separation of Concerns: Hopsworks is retained for its core strength as a Model "
+            "Registry, while Supabase handles high-frequency, reliable feature storage."
+        )
+
+        self._add_subsection_header("2.3 Model Architecture: Why XGBoost Replaced TensorFlow")
+        self._add_paragraph(
+            "TensorFlow/Keras LSTM networks were benchmarked for sequence modeling. However, TensorFlow "
+            "introduces a ~1.5 GB binary footprint, slow CPU training on CI/CD runners, and frequent platform "
+            "incompatibilities. XGBoost and Scikit-learn Random Forest delivered superior R2 scores, faster "
+            "convergence, and sub-second inference with zero heavy runtime dependencies."
         )
 
     def _add_data_description(self):
@@ -267,14 +294,15 @@ class AQIReportGenerator:
         """Add conclusion section."""
         self._add_section_header("8. Conclusion & Deliverables")
         self._add_paragraph(
-            "The Pearls AQI Predictor provides a comprehensive, automated solution for "
+            "The Lahore AQI Predictor provides a comprehensive, automated solution for "
             f"air quality forecasting in {CITY_NAME}. Key achievements:\n\n"
-            "1. End-to-end automated pipeline from data collection to prediction serving.\n"
-            "2. Multiple ML models (Ridge, Random Forest, XGBoost) with automatic fallback.\n"
-            "3. Lahore-specific features capturing local pollution drivers.\n"
-            "4. Interactive dashboard with real-time forecasts and health advisories.\n"
-            "5. SHAP-based model explainability for transparent predictions.\n"
-            "6. Scalable architecture with CI/CD automation.\n"
+            "1. End-to-end automated pipeline from data collection to 72-hour prediction serving.\n"
+            "2. 100% Serverless Architecture: Supabase PostgreSQL Feature Store + Hopsworks Model Registry.\n"
+            "3. Production ML Suite (XGBoost, Random Forest, Ridge) with automated fallback cascade.\n"
+            "4. Lahore-specific atmospheric features capturing winter smog, temperature inversion, and wind dispersion.\n"
+            "5. Interactive full-width dashboard with real-time forecasts, WHO health advisories, and daily cards.\n"
+            "6. SHAP-based model explainability for transparent, interpretable predictions.\n"
+            "7. Fully automated CI/CD using GitHub Actions for hourly feature ingestion and daily retraining.\n"
         )
 
     def generate_report(self, metrics: dict = None, output_path: str = None) -> str:
