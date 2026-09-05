@@ -149,6 +149,7 @@ AQI/
 │   └── FINAL_REPORT.md          # Comprehensive technical report
 ├── tests/                       # Unit tests
 ├── create_supabase_table.sql    # Supabase table DDL
+├── FINAL_REPORT.pdf             # Compiled final technical project report
 ├── requirements.txt
 ├── .env.example
 └── README.md
