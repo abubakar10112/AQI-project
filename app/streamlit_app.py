@@ -335,7 +335,12 @@ def main():
                 emoji = day.get('emoji') or cat_info['emoji']
                 advisory = day.get('advisory') or cat_info.get('health_advisory') or config.get_health_advisory(avg_aqi)
 
-                day_label = "Day 1" if day_num == 1 else f"Day {day_num}"
+                if day_num == 1:
+                    day_label = "Today (Projected Mean)"
+                elif day_num == 2:
+                    day_label = "Tomorrow"
+                else:
+                    day_label = f"Day {day_num}"
 
                 st.markdown(
                     f"""
@@ -352,12 +357,13 @@ def main():
                         margin-bottom: 1rem;
                     ">
                         <div>
-                            <div style="font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;">
+                            <div style="font-size: 0.78rem; color: #94a3b8; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;">
                                 {day_label} • {day_name}
                             </div>
-                            <div style="display: flex; align-items: baseline; gap: 0.5rem; margin-top: 0.5rem;">
+                            <div style="display: flex; align-items: baseline; gap: 0.4rem; margin-top: 0.5rem;">
                                 <span style="font-size: 2.3rem; font-weight: 800; color: #f8fafc;">{avg_aqi:.0f}</span>
-                                <span style="font-size: 1rem; color: #94a3b8; font-weight: 600;">AQI</span>
+                                <span style="font-size: 0.95rem; color: #94a3b8; font-weight: 600;">AQI</span>
+                                <span style="font-size: 0.78rem; color: #64748b; font-weight: 500;">(24h Avg)</span>
                             </div>
                             <div style="
                                 display: inline-block;

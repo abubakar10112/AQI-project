@@ -100,7 +100,7 @@ class SupabaseFeatureStore:
             if not response.data:
                 return pd.DataFrame()
             df = pd.DataFrame(response.data)
-            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            df["timestamp"] = pd.to_datetime(df["timestamp"]).dt.tz_localize(None)
             return df.set_index("timestamp").sort_index()
         except Exception as exc:
             self._last_error = str(exc)
@@ -122,7 +122,7 @@ class SupabaseFeatureStore:
             if not response.data:
                 return pd.DataFrame()
             df = pd.DataFrame(response.data)
-            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            df["timestamp"] = pd.to_datetime(df["timestamp"]).dt.tz_localize(None)
             return df.set_index("timestamp").sort_index()
         except Exception as exc:
             self._last_error = str(exc)
