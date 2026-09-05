@@ -116,7 +116,9 @@ st.markdown(
         .block-container {
             padding-top: 1.2rem;
             padding-bottom: 2.5rem;
-            max-width: 1300px;
+            padding-left: 2.5rem !important;
+            padding-right: 2.5rem !important;
+            max-width: 100% !important;
         }
 
         [data-testid="stSidebar"] {
@@ -356,7 +358,7 @@ def main():
 
     # ------------------ Top Navigation Bar ------------------
     active_model = (forecast_data.get("model_used") or selected_model_key).upper() if forecast_data else selected_model_key.upper()
-    now_str = datetime.now().strftime("%d %b %Y • %H:%M PKT")
+    now_str = datetime.now().strftime("%A, %d %b %Y • %H:%M PKT")
 
     header_col1, header_col2 = st.columns([3, 2])
     with header_col1:
@@ -367,12 +369,15 @@ def main():
     with header_col2:
         st.markdown(
             f"""
-            <div style="display: flex; flex-direction: column; align-items: flex-end; justify-content: center; height: 100%;">
-                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.3rem;">
-                    <span class="badge-pill" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399;">● ONLINE</span>
-                    <span class="badge-pill" style="background: rgba(129, 140, 248, 0.15); border: 1px solid rgba(129, 140, 248, 0.3); color: #a5b4fc;">ENGINE: {active_model}</span>
+            <div style="display: flex; flex-direction: column; align-items: flex-end; justify-content: center; height: 100%; gap: 0.4rem;">
+                <div style="display: flex; gap: 0.5rem;">
+                    <span class="badge-pill" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); color: #34d399;">● ONLINE</span>
+                    <span class="badge-pill" style="background: rgba(129, 140, 248, 0.15); border: 1px solid rgba(129, 140, 248, 0.35); color: #a5b4fc;">ENGINE: {active_model}</span>
                 </div>
-                <div style="font-size: 0.78rem; color: #64748b; font-weight: 500;">Last sync: {now_str}</div>
+                <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 8px; padding: 0.4rem 0.85rem; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                    <span style="font-size: 0.95rem;">📅</span>
+                    <span style="font-size: 0.88rem; color: #f8fafc; font-weight: 700; letter-spacing: 0.01em;">{now_str}</span>
+                </div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -415,9 +420,10 @@ def main():
                             Dominant factor: <b style="color: #ffffff;">PM2.5 particles</b> & meteorological humidity inversion.
                         </div>
                     </div>
-                    <div style="margin-top: 1.3rem; padding-top: 0.9rem; border-top: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between; font-size: 0.78rem; color: #94a3b8;">
-                        <span>Station: <b>Lahore Central</b></span>
-                        <span>Scale: <b>0 - 500 EPA</b></span>
+                    <div style="margin-top: 1.3rem; padding-top: 0.9rem; border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; font-size: 0.8rem; color: #cbd5e1;">
+                        <span>Station: <b style="color: #ffffff;">Lahore Central</b></span>
+                        <span>Date: <b style="color: #38bdf8;">{datetime.now().strftime('%d %b %Y')}</b></span>
+                        <span>Scale: <b style="color: #ffffff;">0 - 500 EPA</b></span>
                     </div>
                 </div>
                 """,
@@ -520,26 +526,28 @@ def main():
 
                 st.markdown(
                     f"""
-                    <div class="glass-card" style="border-top: 5px solid {color}; min-height: 270px; display: flex; flex-direction: column; justify-content: space-between;">
+                    <div class="glass-card" style="border-top: 5px solid {color}; min-height: 280px; display: flex; flex-direction: column; justify-content: space-between;">
                         <div>
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 0.75rem; font-weight: 800; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.05em;">{day_badge}</span>
-                                <span style="font-size: 0.74rem; color: #94a3b8; font-weight: 600;">{day_name}</span>
+                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.6rem; margin-bottom: 0.75rem;">
+                                <span style="display: inline-block; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.35); color: #38bdf8; font-size: 0.74rem; font-weight: 800; padding: 0.2rem 0.6rem; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.05em;">{day_badge}</span>
+                                <div style="font-size: 0.96rem; color: #f8fafc; font-weight: 700; display: flex; align-items: center; gap: 0.35rem;">
+                                    <span>🗓️</span> <span>{day_name}</span>
+                                </div>
                             </div>
-                            <div style="display: flex; align-items: baseline; gap: 0.4rem; margin: 0.8rem 0 0.3rem 0;">
+                            <div style="display: flex; align-items: baseline; gap: 0.4rem; margin: 0.5rem 0 0.3rem 0;">
                                 <span style="font-size: 2.7rem; font-weight: 800; color: #ffffff; line-height: 1;">{avg_aqi:.0f}</span>
-                                <span style="font-size: 0.95rem; color: #94a3b8; font-weight: 700;">AQI</span>
-                                <span style="font-size: 0.74rem; color: #64748b; font-weight: 600;">(24h Mean)</span>
+                                <span style="font-size: 0.95rem; color: #cbd5e1; font-weight: 700;">AQI</span>
+                                <span style="font-size: 0.78rem; color: #94a3b8; font-weight: 600;">(24h Mean)</span>
                             </div>
-                            <div style="display: inline-flex; align-items: center; gap: 0.35rem; background: {color}1f; border: 1px solid {color}45; color: {color}; font-size: 0.78rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 999px; margin-top: 0.2rem;">
+                            <div style="display: inline-flex; align-items: center; gap: 0.35rem; background: {color}1f; border: 1px solid {color}45; color: {color}; font-size: 0.82rem; font-weight: 700; padding: 0.25rem 0.7rem; border-radius: 999px; margin-top: 0.2rem;">
                                 {emoji} {category}
                             </div>
-                            <div style="display: flex; gap: 1.1rem; margin-top: 0.9rem; font-size: 0.82rem; color: #cbd5e1;">
+                            <div style="display: flex; gap: 1.2rem; margin-top: 0.9rem; font-size: 0.84rem; color: #cbd5e1;">
                                 <span>🔻 Low: <b style="color: #ffffff;">{min_aqi:.0f}</b></span>
                                 <span>🔺 Peak: <b style="color: #ffffff;">{max_aqi:.0f}</b></span>
                             </div>
                         </div>
-                        <div class="guide-box" style="margin-top: 1rem; border-left: 3px solid {color}; line-height: 1.4; color: #e2e8f0;">
+                        <div class="guide-box" style="margin-top: 1rem; border-left: 3px solid {color}; line-height: 1.45; color: #e2e8f0;">
                             <b>Advice:</b> {advisory_text}
                         </div>
                     </div>
