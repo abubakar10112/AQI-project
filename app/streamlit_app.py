@@ -109,12 +109,17 @@ st.markdown(
         }
 
         .stApp {
-            background: radial-gradient(circle at 50% -20%, #152238 0%, #080d1a 60%, #04070d 100%);
-            color: #f1f5f9;
+            background: radial-gradient(circle at 50% -20%, #152238 0%, #080d1a 60%, #04070d 100%) !important;
+            color: #f1f5f9 !important;
+        }
+
+        header[data-testid="stHeader"], .stApp > header {
+            background: transparent !important;
+            background-color: transparent !important;
         }
 
         .block-container {
-            padding-top: 1.2rem;
+            padding-top: 3.2rem !important;
             padding-bottom: 2.5rem;
             padding-left: 2.5rem !important;
             padding-right: 2.5rem !important;
@@ -122,8 +127,28 @@ st.markdown(
         }
 
         [data-testid="stSidebar"] {
-            background: rgba(10, 15, 26, 0.95);
-            border-right: 1px solid rgba(255, 255, 255, 0.07);
+            background: rgba(10, 15, 26, 0.98) !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+
+        [data-testid="stSidebar"] * {
+            color: #e2e8f0;
+        }
+
+        [data-testid="stSidebar"] .stSelectbox label, 
+        [data-testid="stSidebar"] .stSlider label {
+            color: #cbd5e1 !important;
+            font-weight: 600 !important;
+        }
+
+        [data-baseweb="select"] > div {
+            background: rgba(18, 27, 44, 0.9) !important;
+            border-color: rgba(255, 255, 255, 0.15) !important;
+            color: #f1f5f9 !important;
+        }
+
+        [data-baseweb="select"] * {
+            color: #f1f5f9 !important;
         }
 
         /* Glassmorphism Card Style */
@@ -177,25 +202,37 @@ st.markdown(
         /* Tabs custom styling */
         .stTabs [data-baseweb="tab-list"] {
             gap: 0.5rem;
-            background: rgba(13, 20, 33, 0.6);
-            padding: 0.35rem;
+            background: rgba(13, 20, 33, 0.75) !important;
+            padding: 0.4rem;
             border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         .stTabs [data-baseweb="tab"] {
             border-radius: 8px;
-            padding: 0.5rem 1.1rem;
+            padding: 0.55rem 1.2rem;
             font-weight: 600;
-            font-size: 0.88rem;
-            color: #94a3b8;
-            border: none;
+            font-size: 0.9rem;
+            background: transparent !important;
+            border: none !important;
+        }
+
+        .stTabs [data-baseweb="tab"] * {
+            color: #94a3b8 !important;
+        }
+
+        .stTabs [data-baseweb="tab"]:hover * {
+            color: #f1f5f9 !important;
         }
 
         .stTabs [aria-selected="true"] {
-            background: rgba(56, 189, 248, 0.15) !important;
+            background: rgba(56, 189, 248, 0.18) !important;
+            border: 1px solid rgba(56, 189, 248, 0.35) !important;
+        }
+
+        .stTabs [aria-selected="true"] * {
             color: #38bdf8 !important;
-            border: 1px solid rgba(56, 189, 248, 0.3) !important;
+            font-weight: 700 !important;
         }
 
         /* Clean metric values */
@@ -213,6 +250,25 @@ st.markdown(
             padding: 0.6rem 0.8rem;
             border: 1px solid rgba(255, 255, 255, 0.05);
             font-size: 0.82rem;
+        }
+
+        /* Buttons */
+        .stButton > button {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.15) 0%, rgba(129, 140, 248, 0.15) 100%) !important;
+            border: 1px solid rgba(56, 189, 248, 0.35) !important;
+            color: #f8fafc !important;
+            border-radius: 10px !important;
+            font-weight: 700 !important;
+            transition: all 0.2s ease !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+        }
+
+        .stButton > button:hover {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.3) 0%, rgba(129, 140, 248, 0.3) 100%) !important;
+            border-color: #38bdf8 !important;
+            color: #ffffff !important;
+            box-shadow: 0 0 16px rgba(56, 189, 248, 0.4) !important;
+            transform: translateY(-1px);
         }
     </style>
     """,
